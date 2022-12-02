@@ -350,7 +350,7 @@ RangerForestPredict <- function(object, data, predict.all = FALSE,
           
           
           #### Covariance
-          jack_cov <- (n - 1) / n * (sum((jack.n1 - yhat[1]) * (jack.n2 - yhat[2])))
+          jack_cov <- (n - 2) / n * (sum((jack.n1 - yhat[1]) * (jack.n2 - yhat[2])))
           result$cov <- matrix(c(jab[1], rep(jack_cov,2), jab[2]), 2, 2)
           
         }
@@ -363,7 +363,7 @@ RangerForestPredict <- function(object, data, predict.all = FALSE,
           jack.n1 <- sweep(tcrossprod(result$predictions[1,], oob), # For Covariance --- Observation 1 
                            2, oob.count, "/", check.margin = FALSE) 
           jack.n2 <- sweep(tcrossprod(result$predictions[2,], oob), # For Covariance --- Observation 2
-                           2, oob.count, "/", check.margin = FALSE)
+                           2, oob.count, "/", check.margin = FALSE) 
           
           if (is.vector(jack.n1)) {
             jack.n1 <- t(as.matrix(jack.n1))

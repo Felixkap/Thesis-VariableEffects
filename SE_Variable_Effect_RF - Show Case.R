@@ -4,16 +4,17 @@ library(tidyverse)
 library(ggplot2)
 library(ggpubr)
 library(ranger)
-library(randomForest)
+library(MixMatrix)
+library(mvtnorm)
 
 source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/RangerPredictFunction.R')
 
+
 ### Model Design
-set.seed(124)
-n <- 200
+n <- 100
 x <- rnorm(n, 0, 1)
 e <- rnorm(n, 0, 1)
-y <- 2*x + e
+y <- 2*-x + e
 data <- data.frame(x, y)
 
 ### Fit Linear Regression Model 
@@ -25,8 +26,9 @@ linreg.se <- predict(linreg, newdata = data, se.fit = T)$se.fit
 ### Fit Random Forest Model from 'ranger'
 rf <- ranger( formula = y ~ x, 
               data = data, 
-              num.trees = 200, 
-              keep.inbag = T)
+              num.trees = 100, 
+              keep.inbag = T, 
+              min.node.size = 5) # min.node.size to smooth forest fit
 
 
 ### Predict RF Responses (Training Data)
@@ -77,7 +79,8 @@ gg_se <- ggplot(data = data, aes(x=y,y=rf.predictions)) +
                     ymax=rf.predictions + 0.5*rf.se), width=.1)+
   geom_abline(slope = 1, linetype = 2 , color = 'red')+
   labs(x = 'True Y', y = 'Predicted Y', 
-       title = 'Random Forest Prediction with Standard Errors vs. True Outcome Variable')+
+       title = 'Random Forest Prediction with Standard Errors 
+       vs. True Outcome Variable')+
   theme_bw()
 
 
@@ -112,7 +115,6 @@ rf.predict$cov
 
 
 
-
 ##### Simulation --- Distribution of Variable Effect and Standard Error
 # Fit Random Forest n times
 # Compute Variable Effect (as we defined it) n times
@@ -120,13 +122,14 @@ rf.predict$cov
 # ---> Based on estimated Variance-Covariance Matrix
 
 # Compare Standard Error of simulated Variable Effects with mean of estimated Standard Errors of Variable Effects
-sim_once <- function(n, num.trees, formula){
+sim_once <- function(N, num.trees, formula){
   
-  
-  x <- rnorm(n, 0, 1)
-  e <- rnorm(n, 0, 1)
-  formula <- parse(text = formula, list(x=x,e=e))
-  y <- eval(formula)
+  x <- rnorm(N, 0, 1)
+  e <- rnorm(N, 0, 1)
+  xe <- data.frame(cbind(x,e))
+
+  formula <- parse(text = formula)
+  y <- eval(formula, xe)
   data <- data.frame(x, y)
   
   rf <- ranger( formula = y ~ x, 
@@ -149,51 +152,71 @@ sim_once <- function(n, num.trees, formula){
                                     inbag.counts = rf$inbag.counts)
   
   rf.predict2 <- RangerForestPredict(rf$forest, 
-                                    new_data, 
-                                    type='se', 
-                                    se.method = 'jack_effect',
-                                    predict.all = T,
-                                    inbag.counts = rf$inbag.counts)
+                                     new_data, 
+                                     type='se', 
+                                     se.method = 'jack_effect',
+                                     predict.all = T,
+                                     inbag.counts = rf$inbag.counts)
   
   
   ab_predictions <- rowMeans(rf.predict$predictions)
   effect <- (ab_predictions[2] - ab_predictions[1]) / 2*sd(x) 
-  ### VAR[(f(B) - f(A)) / 2*sd(x)] = ( 1 / 4*sd(x)^2 ) * ( VAR[f(B)] + VAR[f(B)] - 2*COV[f(A), f(B)] )
-  effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2] - 2*rf.predict$cov[1,2]) /  (2*sd(x))^2 , 0)
+  ### VAR[(f(B) - f(A)) / 2*sd(x)] 
+  #   =( 1 / 4*sd(x)^2 ) * ( VAR[f(B)] + VAR[f(B)] - 2*COV[f(A), f(B)] )
+  smaller_null <- sum((rf.predict$cov[1,1] + rf.predict$cov[2,2] 
+                       - 2*rf.predict$cov[1,2]) /  (2*sd(x))^2 < 0)
+  
+  effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2] 
+                      - 2*rf.predict$cov[1,2]) /  (2*sd(x))^2 , 0)
+  
   effect.se <- sqrt(effect.var)
+  
   effect.se2 <- rf.predict2$se_effect
   
-  return(list(effect = effect, effect.se = effect.se, effect.se2 = effect.se2))
+  return(list(effect = effect, 
+              effect.se = effect.se, 
+              effect.se2 = effect.se2, 
+              smaller_null = smaller_null))
   
 }
 
 
-formulas <- c("2*x+e", "2*x^2+e")
-for (formula in formulas) {
+
+
+
+
+sim_multi <- function(scenario){
   
-  res <- replicate(n = 1e3, 
-                   expr = sim_once(n = 200, num.trees = 200, formula = formula))
+  
+  N <- scenario[["N"]]
+  num.trees <- scenario[["N_Trees"]]
+  formula <- scenario[["Formula"]]
+  repeats <- scenario[["Repeats"]]
+  
+  res <- replicate(n = repeats,
+                   expr = sim_once(N = N, num.trees = num.trees, formula = formula))
   
   
   ### Distribution of Test Statistics
   estimates <- data.frame(effect = unlist(res[1,]), 
                           effect.se = unlist(res[2,]),
-                          effect.se2 = unlist(res[3,]))
+                          effect.se2 = unlist(res[3,]),
+                          smaller_null = unlist(res[4,]))
   
   
   print(ggplot(estimates, aes(x = estimates[,1])) + 
-    geom_histogram(aes(y = after_stat(density)), binwidth = 0.1, color = 'black') +
-    geom_density(alpha = .2, fill = "#FF6666") + 
-    labs(x = 'Effect-Size Estimates', 
-         title = 'Distribution of Variable Effect Estimates')+
-    theme_bw())
+          geom_histogram(aes(y = after_stat(density)), binwidth = 0.1, color = 'black') +
+          geom_density(alpha = .2, fill = "#FF6666") + 
+          labs(x = 'Effect-Size Estimates', 
+               title = 'Distribution of Variable Effect Estimates')+
+          theme_bw())
   
   print(ggplot(estimates, aes(x = estimates[,2])) + 
-    geom_histogram(aes(y = after_stat(density)), binwidth = 0.05, color = 'black') +
-    geom_density(alpha = .2, fill = "#FF6666") + 
-    labs(x = 'Standard Error Estimates', 
-         title = 'Distribution of Standard Error Estimates of Variable Effect')+
-    theme_bw())
+          geom_histogram(aes(y = after_stat(density)), binwidth = 0.05, color = 'black') +
+          geom_density(alpha = .2, fill = "#FF6666") + 
+          labs(x = 'Standard Error Estimates', 
+               title = 'Distribution of Standard Error Estimates of Variable Effect')+
+          theme_bw())
   
   print(ggplot(estimates, aes(x = estimates[,3])) + 
           geom_histogram(aes(y = after_stat(density)), binwidth = 0.05, color = 'black') +
@@ -204,12 +227,63 @@ for (formula in formulas) {
   
   
   
+  cat('Setting (N, num.trees, formula, repeats): ', 
+      c(N, num.trees, formula, repeats),
+      '\nMean of simulated Variable Effects: ', 
+      mean(estimates$effect),
+      '\nStandard Error of simulated Variable Effects: ', 
+      sd(estimates$effect), 
+      '.\nMean of stimulated estimates of Standard Errors of Variable Effects: ', 
+      mean(estimates$effect.se), 
+      '.\nMean of stimulated estimates of Standard Errors2 of Variable Effects: ', 
+      mean(estimates$effect.se2),
+      '.\nSmaller Nulls: ', 
+      sum(estimates$smaller_null), '\n')
   
-  cat('For functional relationship: ', formula,
-      '\nMean of simulated Variable Effects: ', mean(unlist(res[1,1:ncol(res)])),
-      '\nStandard Error of simulated Variable Effects: ', sd(unlist(res[1,1:ncol(res)])), 
-      '.\nMean of stimulated estimates of Standard Errors of Variable Effects: ', mean(estimates[,2]), 
-      '.\nMean of stimulated estimates of Standard Errors2 of Variable Effects: ', mean(estimates[,3]))
   
+  res_scenario <- c(formula, N, num.trees, mean(estimates$effect), 
+                    sd(estimates$effect), mean(estimates$effect.se), 
+                    mean(estimates$effect.se2), sum(estimates$smaller_null))
+  
+  return(res_scenario)
 }
+
+
+
+###### Simulation Setup
+formulas <- c("2*x+e", "2*-x^2+e", "3*sqrt(abs(x))+3*x+e")
+n <- c(100, 200, 500)
+num.trees <- c(50, 100, 200, 500)
+repeats <- 1e3
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats")
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+
+result <- lapply(X = scenarios, FUN = sim_multi)
+
+test <- do.call(rbind, result)
+colnames(test) <- c("Formula", "N", "N_trees",  
+                     "Mean Effect", "SD Effect", "SE Estimate Effect", 
+                     "SE2 Estimate Effect", "N_Nulls")
+
+
+
+
+
+#### How to get a smooth random forest fit
+#### Lots of trees --> No negative standard error estimates of variable effects
+#### Check Bias Correted Version of Covariance Estimation
+#### Check Direkt SE Estimate without Bias corrected version
+#### Compute non-parametric Bootstrap estimate for standard error of varibale effect 
+
+
+
+
+
+
+
+
+
 
