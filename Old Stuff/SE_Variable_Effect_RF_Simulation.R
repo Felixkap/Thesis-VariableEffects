@@ -7,21 +7,21 @@
 rm(list=ls())
 setwd('C://Users/feix_//iCloudDrive//Studium Master//CQM - Thesis Internship//Thesis-VariableEffects')
 
-source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Coviariance RF Predictions.R')
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/SE_Variable_Effect_RF.R')
 library(parallel)
 
 cores <- detectCores()
 clust <- makeCluster(cores)
 # Export all objects in R-Script 'Covariance Predictions R' 
 parallel::clusterEvalQ(clust,
-                       expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Coviariance RF Predictions.R')})
+                       expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/SE_Variable_Effect_RF.R')})
 
 
 
 ###### Simulation Setup
-formulas <- c("2*x+e", "2*-x^2+e", "3*sqrt(abs(x))+3*x+e")
-n <- c(100, 200, 500)
-num.trees <- c(50, 100, 200, 500)
+formulas <- c("2*x+2*-x^2+e")
+n <- c(100, 200, 500, 1000)
+num.trees <- 200
 repeats <- 1e3
 scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats))
 colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats")

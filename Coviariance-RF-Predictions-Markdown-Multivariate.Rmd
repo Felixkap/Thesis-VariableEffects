@@ -1,0 +1,63 @@
+---
+title: "Estimating Variance of Simple Defined Variable Effect directly"
+output: pdf_document
+author: Felix Kapulla
+---
+
+```{r}
+knitr::opts_chunk$set(fig.width=13, fig.height=7) 
+```
+
+```{r,results='hide',message=FALSE, warning=FALSE}
+library(Matrix)
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(ranger)
+library(MixMatrix)
+library(mvtnorm)
+library(stringr)
+library(parallel)
+
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableWorking.R')
+
+cores <- detectCores()
+clust <- makeCluster(cores)
+parallel::clusterEvalQ(clust,
+                       expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableWorking.R')})
+
+```
+
+
+# Simulation 
+
+```{r, warning=FALSE}
+###### Simulation Setup
+n <- c(1000, 10000) ; num.trees <- 2000 ; repeats <- 100; cor <- c(0, 0.8); k <- c(1, 0.3)
+formulas <- c("2*x.1+4*x.2-0.5*x.3") #"-0.5*x.1^3+3*x.2+0.5*sqrt(abs(x.3))"
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, cor, k))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", "Correlation", "k")
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+#system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+#Run Simulation
+system.time(result <- parLapply(cl = clust,
+                                X = scenarios,
+                                fun = sim_multi))
+```
+
+\newpage
+```{r}
+print_results(result)
+
+result_plots <- plot_results(result)
+result_plots
+```
+
+
+
+
+
+
+

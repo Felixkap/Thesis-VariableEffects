@@ -24,9 +24,15 @@ simulate.data.gaussian <- function( #only random intercept, no random slope, onl
   fixed.formula # fixed effects formula
 ){
   X.groups <- rmvnorm(nr.group, mean = rep(0, nrX.between), sigma = CSgenerate(nrX.between, cor))
+  print('X.groups')
+  print(X.groups)
   X.b <- X.groups[rep(seq_len(nrow(X.groups)), each = group.size), ] #for each group repeat the group variable
+  print('X.b')
+  print(X.b)
   
   X.w <- rmvnorm(nr.group * group.size, mean = rep(0, nrX.within), sigma = CSgenerate(nrX.within, cor))
+  print('X.w')
+  print(X.w)
   # merge the two sets of variables
   X = data.frame(X=cbind(X.b, X.w))
   
@@ -443,10 +449,10 @@ make.FE.dataframe <- function(data.wg, models, N){
 
 #############################################################################################################
 #													#####
-##				Ahlem HAJJEM, François BELLAVANCE, and Denis LAROCQUE		 	 ####
-###				Department of Management Sciences HEC Montréal			  	  ###
-####				HEC Montréal, 3000, chemin de la Côte-Sainte-Catherine,	   	 	   ##
-#####				Montréal, QC, Canada H3T 2A7
+##				Ahlem HAJJEM, Fran?ois BELLAVANCE, and Denis LAROCQUE		 	 ####
+###				Department of Management Sciences HEC Montr?al			  	  ###
+####				HEC Montr?al, 3000, chemin de la C?te-Sainte-Catherine,	   	 	   ##
+#####				Montr?al, QC, Canada H3T 2A7
 
 ###	Revised: 27st september 2017	###
 #############################################################################################################
@@ -487,7 +493,7 @@ make.FE.dataframe <- function(data.wg, models, N){
 #	Dzero <- diag(0.01,nrow=q,ncol=q)
 #}
 
-#bizero = NULL		#Starting values of the random effects: a list of n matrices of q × 1 unknown vector of random effects. 
+#bizero = NULL		#Starting values of the random effects: a list of n matrices of q ? 1 unknown vector of random effects. 
 #Default:
 #if( is.null(bizero) ){
 #bizero <- list(); length(bizero)<- n

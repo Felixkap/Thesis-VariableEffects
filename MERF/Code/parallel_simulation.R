@@ -31,7 +31,7 @@ cor <- c(0,0.8)
 sigma.b <- c(0.7, 3)
 sigma.resid <- c(1, 2)
 fixed.formula <- c("X.1+X.2-2*X.2^2-0.5*X.3+1.5*X.4-2*X.5+X.5^2",
-                   "X.1-2*X.1^3+0.5*exp(-X.2)+2*log(abs(X.3*X.5))-4*(abs(X.4 )> 0.5)"
+                   "X.1-2*X.1^3+0.5*exp(X.2)+2*log(abs(X.3*X.5))-4*(abs(X.4 )> 0.5)"
 )
 
 co <- expand.grid(N=N, nr.group = nr.group, group.size = group.size, nrX.between = nrX.between, 
