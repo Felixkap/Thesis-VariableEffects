@@ -313,6 +313,7 @@ RangerForestPredict <- function(object, data, predict.all = FALSE,
     if (se.method == "jack" || se.method == "jack_cov") {
       ## Compute Jackknife
       oob.count <- rowSums(oob) # In how many bootstrap samples appears observation?
+
       jack.n <- sweep(tcrossprod(result$predictions, oob), 
                       2, oob.count, "/", check.margin = FALSE)
      

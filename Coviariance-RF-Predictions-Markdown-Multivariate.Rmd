@@ -1,11 +1,11 @@
 ---
-title: "Estimating Variance of Simple Defined Variable Effect directly"
+title: "Estimating Variance of Simple Defined Variable and Low-Order Interaction Effects"
 output: pdf_document
 author: Felix Kapulla
 ---
 
 ```{r}
-knitr::opts_chunk$set(fig.width=13, fig.height=7) 
+knitr::opts_chunk$set(fig.width=14, fig.height=8) 
 ```
 
 ```{r,results='hide',message=FALSE, warning=FALSE}
@@ -19,40 +19,146 @@ library(mvtnorm)
 library(stringr)
 library(parallel)
 
-source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableWorking.R')
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableInteraction.R')
 
-cores <- detectCores()
-clust <- makeCluster(cores)
-parallel::clusterEvalQ(clust,
-                       expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableWorking.R')})
+# cores <- detectCores()
+# clust <- makeCluster(cores-1)
+# parallel::clusterEvalQ(clust,
+#                        expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariable.R')})
 
 ```
 
 
-# Simulation 
+# Simulation  
 
 ```{r, warning=FALSE}
-###### Simulation Setup
-n <- c(1000, 10000) ; num.trees <- 2000 ; repeats <- 100; cor <- c(0, 0.8); k <- c(1, 0.3)
-formulas <- c("2*x.1+4*x.2-0.5*x.3") #"-0.5*x.1^3+3*x.2+0.5*sqrt(abs(x.3))"
-scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, cor, k))
-colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", "Correlation", "k")
+n <- c(40, 50) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8)
+k <- c(0.2, 1); node_size <- 5
+formulas <- c("2*x.1+4*x.2-0.5*x.3+2.2*x.4")
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
+                                    cor, k, node_size))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
+                        "Correlation", "k", "Node_Size")
 scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
 scenarios <- split(scenarios, seq(nrow(scenarios)))
 
-#system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+system.time(result <- lapply(X = scenarios, FUN = sim_multi))
 #Run Simulation
-system.time(result <- parLapply(cl = clust,
-                                X = scenarios,
-                                fun = sim_multi))
+# system.time(result <- parLapply(cl = clust,
+#                                 X = scenarios,
+#                                 fun = sim_multi))
+
+#stopCluster(clust)
 ```
 
-\newpage
+
 ```{r}
 print_results(result)
 
-result_plots <- plot_results(result)
-result_plots
+effect_plots <- plot_effects(result)
+se_plot <- plot_se(result)
+effect_plots
+se_plot
+```
+
+```{r, fig.width=14, fig.height=14}
+plot_pdps(result)
+```
+
+
+\newpage
+```{r, warning=FALSE}
+n <- c(40) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8)
+k <- c(1); node_size <- c(1, 5, 100)
+formulas <- c("2*x.1+4*x.2-0.5*x.3+2.2*x.4")
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
+                                    cor, k, node_size))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
+                        "Correlation", "k", "Node_Size")
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+#Run Simulation
+# system.time(result <- parLapply(cl = clust,
+#                                 X = scenarios,
+#                                 fun = sim_multi))
+
+#stopCluster(clust)
+```
+
+
+```{r}
+print_results(result)
+
+effect_plots <- plot_effects(result)
+se_plot <- plot_se(result)
+effect_plots
+se_plot
+```
+
+```{r, fig.width=14, fig.height=14}
+plot_pdps(result)
+```
+
+\newpage
+```{r, warning=FALSE}
+###### Simulation Setup
+n <- c(40, 50) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8) 
+k <- c(0.2, 1); node_size <- 5
+formulas <- "-0.5*x.1^3+0.5*sqrt(abs(x.2))*x.2^2+exp(x.3)"
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
+                                    cor, k, node_size))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
+                        "Correlation", "k", "Node_Size")
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+```
+
+```{r}
+print_results(result)
+
+effect_plots <- plot_effects(result)
+se_plot <- plot_se(result)
+effect_plots
+se_plot
+```
+
+```{r, fig.width=14, fig.height=14}
+plot_pdps(result)
+```
+
+
+\newpage
+```{r, warning=FALSE}
+###### Simulation Setup
+n <- c(40, 50) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8)
+k <- c(0.2, 1); node_size <- 5
+formulas <- "-0.5*x.1^3+0.5*sqrt(abs(x.2))*x.2^2+exp(x.3)+2*x.1*x.3"
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
+                                    cor, k, node_size))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
+                        "Correlation", "k", "Node_Size")
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+```
+
+
+```{r}
+print_results(result)
+
+effect_plots <- plot_effects(result)
+se_plot <- plot_se(result)
+effect_plots
+se_plot
+```
+
+```{r, fig.width=14, fig.height=14}
+plot_pdps(result)
 ```
 
 

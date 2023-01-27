@@ -53,7 +53,7 @@ rf.se <- RangerForestPredict(rf$forest,
                              inbag.counts = rf$inbag.counts)$se
 
 rf.se2 <- predict(rf, type = 'se', se.method = 'infjack', data = data[,1, drop=F])
-rf.se2$se
+
 
 
 data <- cbind(data, linreg.predictions, rf.predictions, linreg.se, rf.se)
@@ -133,20 +133,39 @@ rf.predict$cov
 # Compare Standard Error of simulated Variable Effects with mean of estimated Standard Errors of Variable Effects
 sim_once <- function(N, num.trees, formula){
   
-  x <- rnorm(N, 0, 1)
-  e <- rnorm(N, 0, 1)
-  xe <- data.frame(cbind(x,e))
+  ### Simulate Data
+  n_vars <- length(unique(unlist(str_extract_all(formula,"x.[0-9]")))) # Number of variables
+  if (n_vars == 1) {
+    # Normal Distribution with Mean 0 and Variance 1
+    x <- data.frame(x.1 = rnorm(N, 0, 1))
+  } else{
+    # Multivariate Normal Distribution with Mean Vector 0 and diagonal Variance Covariance Matrix 
+    x <- data.frame(x = rmvnorm(N, mean = rep(0, n_vars), sigma = CSgenerate(n_vars, cor)))
+  }
+  
+  
+  # Get interaction terms
+  all_terms <- unlist(strsplit(formulas, "(?<=.)(?=[+])|(?<=.)(?=[-])",perl = TRUE))
+  n_coefs <- length(all_terms)
+  for (term in all_terms) {
+    if (length(unique(unlist(str_extract_all(term,"x.[0-9]")))) > 1) {
+      interaction_term <- unique(unlist(str_extract_all(term,"x.[0-9]")))
+    }
+  }
+  
   
   formula <- parse(text = formula)
-  y <- eval(formula, xe)
-  data <- data.frame(x, y)
+  y <- eval(formula, x) + rnorm(N, 0, 1)
+  data <- data.frame(cbind(x, y))
   
-  rf <- ranger( formula = y ~ x, 
+  
+  
+  rf <- ranger( formula = y ~ ., 
                 data = data, 
                 num.trees = num.trees, 
                 keep.inbag = T)
   
-  
+  print('OK')
   ### Variable Effect
   x_bar <- mean(x)
   x_a <- mean(x) - sd(x)
@@ -159,7 +178,7 @@ sim_once <- function(N, num.trees, formula){
                                     se.method = 'jack_cov',
                                     predict.all = T,
                                     inbag.counts = rf$inbag.counts)
-
+  
   
   
   ab_predictions <- rowMeans(rf.predict$predictions)
@@ -210,14 +229,14 @@ sim_multi <- function(scenario){
     labs(x = 'Effect-Size Estimates', 
          title = 'Distribution of Variable Effect Estimates')+
     theme_bw()
-
+  
   effect_se_plot <- ggplot(estimates, aes(x = estimates[,2])) + 
     geom_histogram(aes(y = after_stat(density)), binwidth = 0.05, color = 'black') +
     geom_density(alpha = .2, fill = "#FF6666") + 
     labs(x = 'Standard Error Estimates', 
          title = 'Distribution of Standard Error Estimates of Variable Effect')+
     theme_bw()
-
+  
   effect_plot_box <- ggplot(estimates, aes(x = estimates[,1])) + 
     geom_histogram(aes(y = after_stat(density)), binwidth = 0.1, color = 'black') +
     geom_density(alpha = .2, fill = "#FF6666") + 
@@ -259,10 +278,10 @@ sim_multi <- function(scenario){
 
 
 ###### Simulation Setup
-formulas <- c("2*x+e", "2*-x^2+e", "3*sqrt(abs(x))+3*x+e")
-n <- c(10, 20, 50)
-num.trees <- 200
-repeats <- 1e2
+formulas <- c("2*x.1")
+n <- c(400)
+num.trees <- 2000
+repeats <- 1e3
 scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats))
 colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats")
 scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
@@ -285,4 +304,3 @@ result <- lapply(X = scenarios, FUN = sim_multi)
 #### Check Bias Correted Version of Covariance Estimation
 #### Check Direkt SE Estimate without Bias corrected version
 #### Compute non-parametric Bootstrap estimate for standard error of varibale effect 
-

@@ -1,3 +1,4 @@
+
 library(Matrix)
 library(tidyverse)
 library(ggplot2)
@@ -10,6 +11,7 @@ library(ggh4x)
 
 
 source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/RangerPredictFunction.R')
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Helper.R')
 
 
 ##### Simulation --- Distribution of Variable Effect and Standard Error
@@ -24,7 +26,7 @@ source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis
 
 sim_once <- function(k, N, num.trees, cor, formula){
   
-  
+
   ### Simulate Data
   n_vars <- length(unique(unlist(str_extract_all(formula,"x.[0-9]")))) # Number of variables
   if (n_vars == 1) {
@@ -76,13 +78,15 @@ sim_once <- function(k, N, num.trees, cor, formula){
   result_list <- lapply(X = 1:length(list_names), FUN = function(X){result_list[[X]] = numeric(length = n_vars)})
   names(result_list) <- list_names
   
-  
+
   for (v in 1:n_vars) {
+    
     
     # New data points based on estimated variable means and standard deviations
     
     x_a <- replace(x_bar, v, x_bar[v] - k*sd(x[,v]))
     x_b <- replace(x_bar, v, x_bar[v] + k*sd(x[,v]))
+    
     
     
     # New data points based on true variable means and standard deviations
@@ -117,6 +121,7 @@ sim_once <- function(k, N, num.trees, cor, formula){
     
     # Using f_hat and sample mean&variance of X
     predictions.rf <- rowMeans(rf.predict$predictions)
+
     #predictions.rf.true <- rowMeans(rf.predict.true$predictions)
     predictions.lm <- lm.predict$fit
     
@@ -142,16 +147,34 @@ sim_once <- function(k, N, num.trees, cor, formula){
     result_list[['effects.f.true']][v] <- (predictions.f.true[2] - predictions.f.true[1]) / (2*k*true_s[v])
     
     
-    # result_list[['smaller_nulls']][v] <- sum((rf.predict$cov[1,1] + rf.predict$cov[2,2]
-    #                                            - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2 < 0)
+    result_list[['smaller_nulls']][v] <- sum((rf.predict$cov[1,1] + rf.predict$cov[2,2]
+                                               - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2 < 0)
     
-    
+
     
     # Standard Error of Variable Effect (Coviariance Estimation)
     # VAR[(f(B) - f(A)) / 2*sd(x)]
     # =( 1 / 4*sd(x)^2 ) * ( VAR[f(B)] + VAR[f(B)] - 2*COV[f(A), f(B)] )
     effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2]
-                        - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2 , 0)
+                        - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2, 0)
+    
+    
+    
+    
+    # if (v==3) {
+    #   print(paste('Variable', v))
+    #   print('DataPoints')
+    #   print(x_a)
+    #   print(x_b)
+    #   print('PREDICTIONS')
+    #   print(predictions.rf)
+    #   print('Variance Covariance')
+    #   print(rf.predict$cov)
+    #   print('SMALLER NULL')
+    #   print((rf.predict$cov[1,1] + rf.predict$cov[2,2]
+    #          - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2 < 0)
+    # }
+
     
     
     result_list[['effects.se.rf']][v] <- sqrt(effect.var)
@@ -170,6 +193,7 @@ sim_once <- function(k, N, num.trees, cor, formula){
 
 sim_multi <- function(scenario){
   
+
   k <- scenario[["k"]]
   N <- scenario[["N"]]
   num.trees <- scenario[["N_Trees"]]
@@ -183,122 +207,26 @@ sim_multi <- function(scenario){
   
   
   ### Distribution of Test Statistics
-  estimates <- list(effects.rf = do.call('rbind', res[1,]),
+  res_scenario <- list(formula=formula, N=N, k=k, cor=cor, num.trees=num.trees,
+                    effects.rf = do.call('rbind', res[1,]),
                     effects.lm = do.call('rbind', res[2,]),
                     #effects.f.sample = do.call('rbind', res[3,]),
                     #effects.rf.true = do.call('rbind', res[3,]),
                     effects.f.true = do.call('rbind', res[3,]),
                     effects.se.rf = do.call('rbind', res[4,]),
-                    effects.se.lm = do.call('rbind', res[5,])
-                    #smaller_nulls = do.call('rbind', res[7,])
+                    effects.se.lm = do.call('rbind', res[5,]),
+                    n.nulls = do.call('rbind', res[6,])
   )
   
-  
-  res_scenario <- list(formula=formula, N=N, k=k, cor=cor, num.trees=num.trees,
-                       effects.rf=estimates$effects.rf,
-                       effects.lm=estimates$effects.lm,
-                       #effects.f.sample=estimates$effects.f.sample,
-                       #effects.rf.true=estimates$effects.rf.true,
-                       effects.f.true=estimates$effects.f.true,
-                       SE_Estimates.rf=estimates$effects.se.rf,
-                       SE_Estimates.lm=estimates$effects.se.lm
-                       #n.nulls=estimates$smaller_nulls
-  )
   
   return(res_scenario)
 }
 
 
 
-
-
-print_results <- function(result){
-  
-  
-  for (i in 1:length(result)) {
-    cat('Setting: N =', result[[i]]$N, '; k =', result[[i]]$k, '; Correlation =', result[[i]]$cor,
-        sprintf(paste0(';\n%', nchar('Setting: ')*2, 's'), 'Formula ='), result[[i]]$formula, '; N_Trees =', result[[i]]$num.trees,
-        '\nMean(s) of simulated RF Variable Effect(s):\n ',
-        colMeans(result[[i]]$effects.rf),
-        '\nMean(s) of simulated LM Variable Effect(s):\n ',
-        colMeans(result[[i]]$effects.lm),
-        # '\nMean(s) of simulated RF Variable Effect(s) with true Means/Variances:\n ',
-        # colMeans(result[[i]]$effects.rf.true),
-        '\nMean(s) of True Variable Effect(s):\n ',
-        colMeans(result[[i]]$effects.f.true),
-        '\nStandard Error of simulated Variable Effects (RF):\n ',
-        apply(result[[i]]$effects.rf, 2, sd),
-        '.\nMean of Standard Errors Estimates of Variable Effects (RF):\n ',
-        colMeans(result[[i]]$SE_Estimates.rf), '\n\n')
-  }
-  
-}
-
-
-
-
-plot_results <- function(result){
-  
-  effect_vec <- c('effects.rf', 
-                  'effects.lm' 
-                  #'effects.rf.true'
-  )
-  
-  mylist <- vector(mode = 'list', length = length(result)*3)
-  cnt <- 1 ; max_vars <- 0
-  for (res_i in 1:length(result)) {
-    for (j in effect_vec) {
-      
-      current_var_names <- unique(unlist(str_extract_all(result[[res_i]][['formula']],"x.[0-9]")))
-      if (length(current_var_names) > max_vars) {
-        var_names <- current_var_names
-        max_vars <- length(var_names) 
-      }
-      
-
-      dat_tmp <- data.frame(x=result[[res_i]][[j]])
-      dat <- cbind(dat_tmp, 
-                   N = paste('N=', result[[res_i]]$N),
-                   cor = paste('Cor=', result[[res_i]]$cor),
-                   k = paste('k=', result[[res_i]]$k),
-                   names(result[[res_i]][j]))
-      names(dat)[length(names(dat))] <- 'effect.type'
-  
-
-      mylist[[cnt]] <-  dat %>%
-        pivot_longer(cols = starts_with('x.'), names_to = 'variable')
-      cnt <- cnt + 1
-      
-    }
-  }
-  
-  mydat <- do.call('rbind', mylist) 
-  
-  mydat$effect.type <- as.factor(mydat$effect.type)
-  
-  levels(mydat$effect.type) <- c(effects.lm='LM', 
-                                 effects.rf='RF'
-                                 #effects.rf.true='RF.true'
-  )
-  
-  
-  df2 <- data.frame(variable = var_names, value = result[[1]]$effects.f.true[1,])
-  
-  
-  plot_result <- ggplot(mydat, aes(x = value, y=effect.type)) +
-    ggh4x::facet_grid2(variable~N+cor+k, scales="free_x", independent = "x")+
-    geom_boxplot(aes(fill=effect.type)) + 
-    geom_vline(data=df2, aes(xintercept=value, color='TrueEffect')) + 
-    labs(y = 'Model', x = 'Effect Estimates', fill = "Model") + 
-    theme(axis.text.x = element_text(angle = 45)) +
-    scale_color_manual(name = "", values = c(TrueEffect = "orange"))
-  
-  return(plot_result)
-}
-
 # ## Simulation Setup
-# n <- c(100) ; num.trees <- 20 ; repeats <- 100; cor <- c(0); k <- c(0.5)
-# formulas <- c("2*x.1+4*x.2-0.5*x.3") #"-0.5*x.1^3+3*x.2+0.5*sqrt(abs(x.3))"
+# n <- c(50, 500) ; num.trees <- c(2000) ; repeats <- 1000; cor <- c(0); k <- c(1)
+# formulas <- c("2*x.1+4*x.2-3*x.3+4*x.4-2.2*x.5")  #"-0.5*x.1^3+3*x.2+0.5*sqrt(abs(x.3))"
 # scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, cor, k))
 # colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", "Correlation", "k")
 # scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
@@ -307,10 +235,23 @@ plot_results <- function(result){
 # system.time(result <- lapply(X = scenarios, FUN = sim_multi))
 # print_results(result)
 # 
-# result_plots <- plot_results(result)
-# result_plots
+# effect_plots <- plot_effects(result)
+# se_plot <- plot_se(result)
+# effect_plots
+# se_plot
 
+n <- c(10, 20) ; num.trees <- c(40) ; repeats <- 20; cor <- c(0, 0.8); k <- c(0.2, 1)
+formulas <- c(" 2*x.1+4*x.2-0.5*x.3")
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, cor, k))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", "Correlation", "k")
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios <- split(scenarios, seq(nrow(scenarios)))
 
+system.time(result <- lapply(X = scenarios, FUN = sim_multi))
 
-
+print_results(result)
+effect_plots <- plot_effects(result)
+se_plot <- plot_se(result)
+effect_plots
+se_plot
 
