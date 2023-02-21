@@ -1,11 +1,11 @@
 ---
-title: "Estimating Variance of Simple Defined Variable and Low-Order Interaction Effects"
+title: "Estimating Variance of Simple Defined Variable Main and Low-Order Interaction Effects"
 output: pdf_document
 author: Felix Kapulla
 ---
 
 ```{r}
-knitr::opts_chunk$set(fig.width=14, fig.height=8) 
+knitr::opts_chunk$set(fig.width=15, fig.height=8) 
 ```
 
 ```{r,results='hide',message=FALSE, warning=FALSE}
@@ -19,151 +19,195 @@ library(mvtnorm)
 library(stringr)
 library(parallel)
 
+cores <- detectCores()
+clust <- makeCluster(4)
+
 source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableInteraction.R')
 
-# cores <- detectCores()
-# clust <- makeCluster(cores-1)
-# parallel::clusterEvalQ(clust,
-#                        expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariable.R')})
+parallel::clusterEvalQ(clust,
+                        expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Baseline_MultipleVariableInteraction.R')})
 
 ```
 
 
 # Simulation  
 
-```{r, warning=FALSE}
-n <- c(40, 50) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8)
-k <- c(0.2, 1); node_size <- 5
-formulas <- c("2*x.1+4*x.2-0.5*x.3+2.2*x.4")
-scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
-                                    cor, k, node_size))
-colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
-                        "Correlation", "k", "Node_Size")
-scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
-scenarios <- split(scenarios, seq(nrow(scenarios)))
 
-system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+```{r, warning=FALSE, fig.show='hide'}
+n <- c(400) ; num.trees <- 2000 ; repeats <- 200; cor <- c(0, 0.8)
+k <- c(1); node_size <- c(1); pdp <- F; ale <- F
+formulas <- c("2*x.1",
+              "2*x.1+4*x.2",
+              "2*x.1+4*x.2-3*x.3",
+              "2*x.1+4*x.2-3*x.3+2.2*x.4",
+              "2*x.1+4*x.2-3*x.3+2.2*x.4-1.5*x.5")
+
+longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-1.5x_5"
+
+
+
+#parallel::clusterExport(cl = clust, varlist = 'formulas')
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+cor, k, node_size, pdp, ale))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+"Correlation", "k", "Node_Size", "pdp", "ale")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
 #Run Simulation
-# system.time(result <- parLapply(cl = clust,
-#                                 X = scenarios,
-#                                 fun = sim_multi))
 
-#stopCluster(clust)
+system.time(result <- parLapply(cl = clust,
+                                X = scenarios,
+                                fun = sim_multi))
+
 ```
 
 
 ```{r}
-print_results(result)
-
+if (!pdp | !ale) {
+ print_results(result) 
+}
 effect_plots <- plot_effects(result)
 se_plot <- plot_se(result)
 effect_plots
 se_plot
 ```
 
-```{r, fig.width=14, fig.height=14}
-plot_pdps(result)
-```
-
 
 \newpage
-```{r, warning=FALSE}
-n <- c(40) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8)
-k <- c(1); node_size <- c(1, 5, 100)
-formulas <- c("2*x.1+4*x.2-0.5*x.3+2.2*x.4")
-scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
-                                    cor, k, node_size))
-colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
-                        "Correlation", "k", "Node_Size")
-scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
-scenarios <- split(scenarios, seq(nrow(scenarios)))
 
-system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+```{r, warning=FALSE, fig.show='hide'}
+n <- c(400) ; num.trees <- 2000 ; repeats <- 200; cor <- c(0, 0.8)
+k <- c(1); node_size <- c(1); pdp <- F; ale <- F
+formulas <- c("2*x.1",
+              "2*x.1+4*x.2",
+              "2*x.1+4*x.2-3*x.3",
+              "2*x.1+4*x.2-3*x.3+2.2*x.4",
+              "2*x.1+4*x.2-3*x.3+2.2*x.4-x.3*x.4")
+
+longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-x_3x_4"
+
+
+
+#parallel::clusterExport(cl = clust, varlist = 'formulas')
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+cor, k, node_size, pdp, ale))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+"Correlation", "k", "Node_Size", "pdp", "ale")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
 #Run Simulation
-# system.time(result <- parLapply(cl = clust,
-#                                 X = scenarios,
-#                                 fun = sim_multi))
 
-#stopCluster(clust)
+system.time(result <- parLapply(cl = clust,
+                                X = scenarios,
+                                fun = sim_multi))
+
 ```
 
 
 ```{r}
-print_results(result)
-
+if (!pdp | !ale) {
+ print_results(result) 
+}
 effect_plots <- plot_effects(result)
 se_plot <- plot_se(result)
 effect_plots
 se_plot
-```
-
-```{r, fig.width=14, fig.height=14}
-plot_pdps(result)
-```
-
-\newpage
-```{r, warning=FALSE}
-###### Simulation Setup
-n <- c(40, 50) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8) 
-k <- c(0.2, 1); node_size <- 5
-formulas <- "-0.5*x.1^3+0.5*sqrt(abs(x.2))*x.2^2+exp(x.3)"
-scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
-                                    cor, k, node_size))
-colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
-                        "Correlation", "k", "Node_Size")
-scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
-scenarios <- split(scenarios, seq(nrow(scenarios)))
-
-system.time(result <- lapply(X = scenarios, FUN = sim_multi))
-```
-
-```{r}
-print_results(result)
-
-effect_plots <- plot_effects(result)
-se_plot <- plot_se(result)
-effect_plots
-se_plot
-```
-
-```{r, fig.width=14, fig.height=14}
-plot_pdps(result)
 ```
 
 
 \newpage
-```{r, warning=FALSE}
-###### Simulation Setup
-n <- c(40, 50) ; num.trees <- 20 ; repeats <- 25; cor <- c(0, 0.8)
-k <- c(0.2, 1); node_size <- 5
-formulas <- "-0.5*x.1^3+0.5*sqrt(abs(x.2))*x.2^2+exp(x.3)+2*x.1*x.3"
-scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, 
-                                    cor, k, node_size))
-colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", 
-                        "Correlation", "k", "Node_Size")
-scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
-scenarios <- split(scenarios, seq(nrow(scenarios)))
 
-system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+```{r, warning=FALSE, fig.show='hide'}
+n <- c(400) ; num.trees <- 2000 ; repeats <- 200; cor <- c(0, 0.8)
+k <- c(1); node_size <- c(1); pdp <- F; ale <- F
+formulas <- c("x.1",
+              "x.1-2*x.2^3",
+              "x.1-2*x.2^3+3*exp(x.3)*x.3",
+              "x.1-2*x.2^3+3*exp(x.3)*x.3-4*(abs(x.4)>0.5)",
+              "x.1-2*x.2^3+3*exp(x.3)*x.3-4*(abs(x.4)>0.5)-2^x.5")
+
+longest_latex_formula <- "x_1-2x_2^3+3e^{x_3}x_3-4(|x_4|>0.5)-2^{x_5}"
+
+
+
+
+#parallel::clusterExport(cl = clust, varlist = 'formulas')
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+cor, k, node_size, pdp, ale))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+"Correlation", "k", "Node_Size", "pdp", "ale")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+#Run Simulation
+
+system.time(result <- parLapply(cl = clust,
+                                X = scenarios,
+                                fun = sim_multi))
+
 ```
 
 
 ```{r}
-print_results(result)
-
+if (!pdp | !ale) {
+ print_results(result) 
+}
 effect_plots <- plot_effects(result)
 se_plot <- plot_se(result)
 effect_plots
 se_plot
 ```
 
-```{r, fig.width=14, fig.height=14}
-plot_pdps(result)
+
+
+\newpage
+
+```{r, warning=FALSE, fig.show='hide'}
+n <- c(400) ; num.trees <- 2000 ; repeats <- 200; cor <- c(0, 0.8)
+k <- c(1); node_size <- c(1); pdp <- F; ale <- F
+formulas <- c("x.1",
+              "x.1-2*x.2^3",
+              "x.1-2*x.2^3+3*exp(x.3)*x.3",
+              "x.1-2*x.2^3+3*exp(x.3)*x.3-4*(abs(x.4)>0.5)",
+              "x.1-2*x.2^3+3*exp(x.3)*x.3-4*(abs(x.4)>0.5)-2*(x.3*x.4)^2")
+
+longest_latex_formula <- "x_1-2x_2^3+3e^{x_3}x_3-4(|x_4|>0.5)-2(x_3x_4)^2"
+
+
+
+
+#parallel::clusterExport(cl = clust, varlist = 'formulas')
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+cor, k, node_size, pdp, ale))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+"Correlation", "k", "Node_Size", "pdp", "ale")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+#Run Simulation
+
+system.time(result <- parLapply(cl = clust,
+                                X = scenarios,
+                                fun = sim_multi))
+
 ```
 
 
-
-
+```{r}
+if (!pdp | !ale) {
+ print_results(result) 
+}
+effect_plots <- plot_effects(result)
+se_plot <- plot_se(result)
+effect_plots
+se_plot
+```
 
 
 

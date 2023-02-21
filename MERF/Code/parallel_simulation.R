@@ -1,3 +1,4 @@
+rm(list=ls())
 library(batch)
 library(parallel)
 
@@ -5,13 +6,13 @@ detectCores()
 
 ### Create clusters for parallel simulation
 cl.n <- min(16, detectCores()/2+4)
-cl.n <- 11
+cl.n <- 6
 cl <- makeCluster(cl.n)
-source("C:/Users/rtn/Documents/R/MRF_functions.R")
+source("C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/MERF/Code/parallel_simulation.R")
 
 #read functions and load necessary libraries from other file
 parallel::clusterEvalQ(cl,
-                       expr = {source("C:/Users/rtn/Documents/R/MRF_functions_simulation.R")})
+                       expr = {source("C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/MERF/Code/parallel_simulation.R")})
 
 
 

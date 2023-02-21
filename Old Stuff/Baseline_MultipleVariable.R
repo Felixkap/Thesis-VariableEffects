@@ -239,19 +239,19 @@ sim_multi <- function(scenario){
 # se_plot <- plot_se(result)
 # effect_plots
 # se_plot
-
-n <- c(10, 20) ; num.trees <- c(40) ; repeats <- 20; cor <- c(0, 0.8); k <- c(0.2, 1)
-formulas <- c(" 2*x.1+4*x.2-0.5*x.3")
-scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, cor, k))
-colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", "Correlation", "k")
-scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
-scenarios <- split(scenarios, seq(nrow(scenarios)))
-
-system.time(result <- lapply(X = scenarios, FUN = sim_multi))
-
-print_results(result)
-effect_plots <- plot_effects(result)
-se_plot <- plot_se(result)
-effect_plots
-se_plot
+# 
+# n <- c(10, 20) ; num.trees <- c(40) ; repeats <- 20; cor <- c(0, 0.8); k <- c(0.2, 1)
+# formulas <- c(" 2*x.1+4*x.2-0.5*x.3")
+# scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats, cor, k))
+# colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats", "Correlation", "k")
+# scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+# scenarios <- split(scenarios, seq(nrow(scenarios)))
+# 
+# system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+# 
+# print_results(result)
+# effect_plots <- plot_effects(result)
+# se_plot <- plot_se(result)
+# effect_plots
+# se_plot
 
