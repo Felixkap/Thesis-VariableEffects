@@ -135,6 +135,7 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
                                       new_data,
                                       type='se',
                                       se.method = 'jack_cov',
+                                      k_ratio = k, 
                                       predict.all = T,
                                       inbag.counts = rf$inbag.counts)
     
@@ -163,16 +164,18 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
     result_list[['effects.f.true']][v] <- (predictions.f.true[2] - predictions.f.true[1]) / (2*k*true_s[v])
     
     
-    result_list[['smaller_nulls']][v] <- sum((rf.predict$cov[1,1] + rf.predict$cov[2,2]
-                                              - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2 < 0)
-    
+    # result_list[['smaller_nulls']][v] <- sum((rf.predict$cov[1,1] + rf.predict$cov[2,2]
+    #                                           - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2 < 0)
+    # 
     # Standard Error of Variable Effect (Coviariance Estimation)
     # VAR[(f(B) - f(A)) / 2*sd(x)]
     # =( 1 / 4*sd(x)^2 ) * ( VAR[f(B)] + VAR[f(B)] - 2*COV[f(A), f(B)] )
-    effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2]
-                        - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2, 0)
     
-    result_list[['effects.se.rf']][v] <- sqrt(effect.var)
+    effect.se.direct <- rf.predict$se_effect
+    # effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2]
+    #                     - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2, 0)
+    # 
+    result_list[['effects.se.rf']][v] <- effect.se.direct #sqrt(effect.var)
     result_list[['effects.se.lm']][v] <- summary(linreg)$coef[,"Std. Error"][v+1]
     
     
@@ -241,6 +244,7 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
         rf.predict <- RangerForestPredict(rf$forest,
                                           new_data,
                                           type='se',
+                                          k_ratio = k,
                                           se.method = 'jack_cov',
                                           predict.all = T,
                                           inbag.counts = rf$inbag.counts)
@@ -258,24 +262,27 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
         # Using f and true mean&variance of X
         predictions.f.true <- eval(formula_p, new_data.true)
         
+        
         result_list[['effects.rf']][n_coefs] <- ((predictions.rf[5] - predictions.rf[3]) - (predictions.rf[6] - predictions.rf[4])) / (-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]]))
         result_list[['effects.lm']][n_coefs] <- ((predictions.lm[5] - predictions.lm[3]) - (predictions.lm[6] - predictions.lm[4])) / (-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]]))
         
         # Using f predictions based on true mean&variance of X 
         
         result_list[['effects.f.true']][n_coefs] <- ((predictions.f.true[5] - predictions.f.true[3]) - (predictions.f.true[6] - predictions.f.true[4])) / (-4*k^2*true_s[interaction_term[1]]*true_s[interaction_term[2]])
+        # 
+        # result_list[['smaller_nulls']][n_coefs] <- sum((sum(diag(rf.predict$cov))
+        #                                                 - 2*rf.predict$cov[2,1]
+        #                                                 - 2*rf.predict$cov[3,1] + 2*rf.predict$cov[3,2]
+        #                                                 + 2*rf.predict$cov[4,1] - 2*rf.predict$cov[4,2] - 2*rf.predict$cov[4,3]) /  ((-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]])))^2 < 0)
         
-        result_list[['smaller_nulls']][n_coefs] <- sum((sum(diag(rf.predict$cov))
-                                                        - 2*rf.predict$cov[2,1]
-                                                        - 2*rf.predict$cov[3,1] + 2*rf.predict$cov[3,2]
-                                                        + 2*rf.predict$cov[4,1] - 2*rf.predict$cov[4,2] - 2*rf.predict$cov[4,3]) /  ((-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]])))^2 < 0)
+        effect.se.direct <- rf.predict$se_effect
+        # effect.var <- pmax((sum(diag(rf.predict$cov))
+        #                     - 2*rf.predict$cov[2,1]
+        #                     - 2*rf.predict$cov[3,1] + 2*rf.predict$cov[3,2]
+        #                     + 2*rf.predict$cov[4,1] - 2*rf.predict$cov[4,2] - 2*rf.predict$cov[4,3]) /  ((-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]])))^2, 0)
+        # 
         
-        effect.var <- pmax((sum(diag(rf.predict$cov))
-                            - 2*rf.predict$cov[2,1]
-                            - 2*rf.predict$cov[3,1] + 2*rf.predict$cov[3,2]
-                            + 2*rf.predict$cov[4,1] - 2*rf.predict$cov[4,2] - 2*rf.predict$cov[4,3]) /  ((-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]])))^2, 0)
-        
-        result_list[['effects.se.rf']][n_coefs] <- sqrt(effect.var)
+        result_list[['effects.se.rf']][n_coefs] <- effect.se.direct #sqrt(effect.var)
         result_list[['effects.se.lm']][n_coefs] <- (summary(linreg)$coef[,"Std. Error"][v+1])
       }
     }
@@ -314,6 +321,8 @@ sim_multi <- function(scenario){
                                    node_size = node_size, pdp = pdp,
                                    ale = ale, k_idx = k_idx))
   
+  print('ok')
+  
 
   
   ### Distribution of Test Statistics
@@ -350,12 +359,13 @@ sim_multi <- function(scenario){
 
 
 
-# # # # # ###### Simulation Setup
-# n <- c(50) ; num.trees <- 20 ; repeats <- 10; cor <- c(0, 0.8)
+# # # ###### Simulation Setup
+# n <- c(40) ; num.trees <- 2000 ; repeats <- 10; cor <- c(0, 0.8)
 # k <- c(0.2, 1); node_size <- c(1); pdp <- F; ale <- F
-# formulas <- c("2*x.1+4*x.2-x.2*x.3")
+# formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-x.3*x.4",
+#               "2*x.1+4*x.2-3*x.3+2.2*x.4-1.5*x.5")
+# longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-x_3x_4"
 # 
-# longest_latex_formula <- "2x_1+4x_2-x_2x_3"
 # 
 # #parallel::clusterExport(cl = clust, varlist = 'formulas')
 # scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
@@ -366,16 +376,16 @@ sim_multi <- function(scenario){
 # scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
 # scenarios["Longest_Latex_formula"] <- longest_latex_formula
 # scenarios <- split(scenarios, seq(nrow(scenarios)))
-# #Run Simulation
+# # #Run Simulation
 # system.time(result <- lapply(X = scenarios, FUN = sim_multi))
-# 
+
 # if (!pdp | !ale) {
 #   print_results(result)
 # }
-# source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Helper.R')
 # effect_plots <- plot_effects(result)
 # 
 # se_plot <- plot_se(result)
 # effect_plots
 # se_plot
-# 
+
+

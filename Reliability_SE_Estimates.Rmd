@@ -12,7 +12,6 @@ knitr::opts_chunk$set(fig.width=15, fig.height=8)
 library(parallel)
 cores <- detectCores()
 clust <- makeCluster(4)
-source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/RangerPredictFunction.R')
 source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Reliability_SE_Estimates.R')
 
 
@@ -27,7 +26,7 @@ parallel::clusterEvalQ(clust,
 ```{r, warning=FALSE, fig.show='hide'}
 ### Scenarios
 set.seed(123)
-N <- c(40, 400, 4000) ; num.trees <- c(20, 200, 2000) ; reps <- 150; cor <- c(0)
+N <- c(40, 400, 4000) ; num.trees <- c(20, 200, 2000) ; reps <- 200; cor <- c(0)
 k <- c(1); node_size <- c(1)
 formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-1.5*x.5")
 longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-1.5x_5"
@@ -41,10 +40,9 @@ scenarios["Longest_Latex_formula"] <- longest_latex_formula
 scenarios <- split(scenarios, seq(nrow(scenarios)))
 
 
-
 system.time(result <- parLapply(cl = clust,
-                                X = scenarios,
-                                fun = sim))
+                               X = scenarios,
+                               fun = sim))
 
 ```
 

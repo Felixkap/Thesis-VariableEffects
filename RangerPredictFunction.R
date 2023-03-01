@@ -7,7 +7,7 @@ rangerCpp <- function(treetype, input_x, input_y, variable_names, mtry, num_tree
 
 
 
-RangerForestPredict <- function(object, data, predict.all = FALSE,
+RangerForestPredict <- function(object, data, predict.all = FALSE, k_ratio, 
                                   num.trees = object$num.trees, 
                                   type = "response", se.method = "jack",
                                   seed = NULL, num.threads = NULL,
@@ -349,34 +349,43 @@ RangerForestPredict <- function(object, data, predict.all = FALSE,
         ######################################################################
         ############### Estimate Variance - Covariance Matrix ################
         ######################################################################
-        n_obs <- nrow(jack.n)
-        obs_vec <- sapply(1:n_obs, function(i){jack.n[i,] - yhat[i]})
-        
-        
-        
-        result$cov <- matrix(NA, n_obs, n_obs)
-        for (i in 1:n_obs) {
-          for (j in 1:n_obs) {
-            if (i==j) {
-              result$cov[i,j] = jab[i]
-            } else {
-              jack_cov <- (n - 1) / n * sum(obs_vec[,i] * obs_vec[,j])
-              bias <- (exp(1) - 1) * n / result$num.trees^2 * sum((result$predictions[i,] - yhat[i])*(result$predictions[j,] - yhat[j]))
-              jack_cov <- jack_cov - bias
-              result$cov[i,j] = jack_cov
-            }
-          }
-        }
+        # n_obs <- nrow(jack.n)
+        # obs_vec <- sapply(1:n_obs, function(i){jack.n[i,] - yhat[i]})
+        # 
+        # 
+        # 
+        # result$cov <- matrix(NA, n_obs, n_obs)
+        # for (i in 1:n_obs) {
+        #   for (j in 1:n_obs) {
+        #     if (i==j) {
+        #       result$cov[i,j] = jab[i]
+        #     } else {
+        #       jack_cov <- (n - 1) / n * sum(obs_vec[,i] * obs_vec[,j])
+        #       bias <- (exp(1) - 1) * n / result$num.trees^2 * sum((result$predictions[i,] - yhat[i])*(result$predictions[j,] - yhat[j]))
+        #       jack_cov <- jack_cov - bias
+        #       result$cov[i,j] = jack_cov
+        #     }
+        #   }
+        # }
         
         
         
         ######################################################################
         ######## Direct Estimate for Standard Error of Variable Effect #######
         ######################################################################
-        jack_var <- (n - 1) / n * sum(((jack.n[2,] - jack.n[1,]) - (yhat[2] - yhat[1]))^2) 
-        bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum(((result$predictions[2,] - result$predictions[1,]) - (yhat[2] - yhat[1]))^2) 
-        jab_var <- (pmax(jack_var - bias_var, 0)) / 4
-        result$se_effect <- sqrt(jab_var)
+        
+        if (nrow(jack.n) == 2) {
+          jack_var <- (n - 1) / n * sum(((jack.n[2,] - jack.n[1,]) - (yhat[2] - yhat[1]))^2) 
+          bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum(((result$predictions[2,] - result$predictions[1,]) - (yhat[2] - yhat[1]))^2) 
+          jab_var <- (pmax(jack_var - bias_var, 0))
+          result$se_effect <- ( 1 / k_ratio ) * sqrt(jab_var) / 2
+        } else {
+          jack_var <- (n - 1) / n * sum((((jack.n[5,] - jack.n[3,]) - (jack.n[6,] - jack.n[4,])) - ((yhat[5] - yhat[3]) - (yhat[6] - yhat[4])))^2) 
+          bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum((((result$predictions[5,] - result$predictions[3,]) - (result$predictions[6,] - result$predictions[4,])) - ((yhat[5] - yhat[3]) - (yhat[6] - yhat[4])))^2) 
+          jab_var <- pmax(jack_var - bias_var, 0) 
+          result$se_effect <- ( 1 / k_ratio^2 ) * sqrt(jab_var) / 4
+        }
+        
     
           
       } 

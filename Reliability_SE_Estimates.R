@@ -11,6 +11,8 @@ library(latex2exp)
 library(iml)
 library(ALEPlot)
 
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/RangerPredictFunction.R')
+
 
 ################################################################################
 ################################################################################
@@ -341,6 +343,7 @@ sim <- function(scenario){
                                         new_data,
                                         type='se',
                                         se.method = 'jack_cov',
+                                        k_ratio = k, 
                                         predict.all = T,
                                         inbag.counts = rf$inbag.counts)
       # Using f_hat and sample mean&variance of X
@@ -355,10 +358,12 @@ sim <- function(scenario){
       # Using f predictions based on true mean&variance of X 
       var_effects_true[v] <- (predictions.f.true[2] - predictions.f.true[1]) / (2*k*true_s[v])
       
+  
+      effect.se.direct <- rf.predict$se_effect 
       effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2]
                           - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2, 0)
       
-      var_effects_se[v] <- sqrt(effect.var)
+      var_effects_se[v] <- effect.se.direct #sqrt(effect.var)
       
       if (exists('interaction_term')) {
         
@@ -393,6 +398,7 @@ sim <- function(scenario){
           rf.predict <- RangerForestPredict(rf$forest,
                                             new_data,
                                             type='se',
+                                            k_ratio = k,
                                             se.method = 'jack_cov',
                                             predict.all = T,
                                             inbag.counts = rf$inbag.counts)
@@ -408,13 +414,13 @@ sim <- function(scenario){
           var_effects[v] <- ((predictions.rf[5] - predictions.rf[3]) - (predictions.rf[6] - predictions.rf[4])) / (-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]]))
           var_effects_true[v] <- ((predictions.f.true[5] - predictions.f.true[3]) - (predictions.f.true[6] - predictions.f.true[4])) / (-4*k^2*true_s[interaction_term[1]]*true_s[interaction_term[2]])
           
-          
+          effect.se.direct <- rf.predict$se_effect
           effect.var <- pmax((sum(diag(rf.predict$cov))
                               - 2*rf.predict$cov[2,1]
                               - 2*rf.predict$cov[3,1] + 2*rf.predict$cov[3,2]
                               + 2*rf.predict$cov[4,1] - 2*rf.predict$cov[4,2] - 2*rf.predict$cov[4,3]) /  ((-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]])))^2, 0)
           
-          var_effects_se[v] <- sqrt(effect.var)
+          var_effects_se[v] <- effect.se.direct #sqrt(effect.var)
         }
       }
       
@@ -438,3 +444,26 @@ sim <- function(scenario){
   
   return(result_list)
 }
+
+
+
+# set.seed(123)
+# N <- c(50) ; num.trees <- c(2000) ; reps <- 100; cor <- c(0, 0.8)
+# k <- c(1); node_size <- c(1)
+# formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-1.5*x.5")
+# longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-1.5x_5"
+# scenarios <- data.frame(expand.grid(N, num.trees, formulas, reps,
+#                                     cor, k, node_size))
+# colnames(scenarios) = c("N", "N_Trees", "Formula", "Reps",
+#                         "Correlation", "k", "Node_Size")
+# scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+# scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+# scenarios["Longest_Latex_formula"] <- longest_latex_formula
+# scenarios <- split(scenarios, seq(nrow(scenarios)))
+# 
+# 
+# 
+# system.time(result <- lapply(X = scenarios, FUN = sim))
+# 
+# plot_effects(result)
+# plot_se_dense(result)
