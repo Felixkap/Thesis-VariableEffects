@@ -2,6 +2,7 @@ library(tidyverse)
 library(ggplot2)
 library(ggpubr)
 library(stringr)
+library(ggnewscale)
 library(ggh4x)
 library(latex2exp)
 source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/RangerPredictFunction.R')
@@ -111,6 +112,7 @@ plot_se <- function(result){
                                      result = result)
   
   sd_df <- get_sd_effects(result)
+  mean_sd_df <- get_mean_sd_effects(result)
   alldat <- do.call('rbind', scenario_list)
   
 
@@ -132,7 +134,14 @@ plot_se <- function(result){
           plot.caption = element_text(hjust = 0, size = 15)) +
     scale_color_manual(name = "", 
                        values = c(Sd_Variable_Effects = "orange"), 
-                       labels = 'Standard Deviation\nof simulated\nVariable Effects')
+                       labels = 'Standard Deviation\nof simulated\nVariable Effects') + 
+    new_scale_colour() + 
+    geom_vline(data=mean_sd_df, aes(xintercept=mean_sd_val, color='Mean_Sd_Variable_Effects')) +
+    scale_color_manual(name = "", 
+                       values = c(Mean_Sd_Variable_Effects = "green"), 
+                       labels = 'Mean of Standard\nError Estimates\nof Variable Effects')
+    
+  
   
   return(plot_result)
 }
@@ -153,6 +162,23 @@ get_sd_effects <- function(result){
     summarise(sd_val = sd(value))
   
   return(sd_df)
+}
+
+
+
+get_mean_sd_effects <- function(result){
+  
+  scenario_list <- data_per_scenario(var_name = 'x.', 
+                                     effect_types = c('effects.se.rf'), 
+                                     result = result)
+  
+  alldat <- do.call('rbind', scenario_list)
+  
+  mean_sd_df <- alldat %>% 
+    group_by(N, cor, k, num.trees, node_size, variable, n_vars) %>% 
+    summarise(mean_sd_val = mean(value))
+  
+  return(mean_sd_df)
 }
 
 

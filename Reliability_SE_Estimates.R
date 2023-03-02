@@ -311,6 +311,10 @@ sim <- function(scenario){
   
   names(result_list) <- list_names
   
+  summands_list <- lapply(X = 1:n_coefs, FUN = function(x){
+    init <- matrix(data = 0, nrow = reps, ncol = N)
+  })
+  
   for (rep in 1:reps) {
     rf <- ranger( formula = y ~ .,
                   data = data,
@@ -324,7 +328,8 @@ sim <- function(scenario){
     var_effects_se <- numeric(n_coefs)
     var_effects_true <- numeric(n_coefs)
     
-    for (v in 1:n_coefs) {
+
+    for (v in 1:n_vars) {
       
       # New data points based on estimated variable means and standard deviations
       x_a <- replace(x_bar, v, x_bar[v] - k*sd(x[,v]))
@@ -344,6 +349,7 @@ sim <- function(scenario){
                                         type='se',
                                         se.method = 'jack_cov',
                                         k_ratio = k, 
+                                        save = TRUE,
                                         predict.all = T,
                                         inbag.counts = rf$inbag.counts)
       # Using f_hat and sample mean&variance of X
@@ -360,6 +366,7 @@ sim <- function(scenario){
       
   
       effect.se.direct <- rf.predict$se_effect 
+      summands_list[[v]][rep,] <- rf.predict$summands
       effect.var <- pmax((rf.predict$cov[1,1] + rf.predict$cov[2,2]
                           - 2*rf.predict$cov[1,2]) /  (2*k*sd(x[,v]))^2, 0)
       
@@ -399,6 +406,7 @@ sim <- function(scenario){
                                             new_data,
                                             type='se',
                                             k_ratio = k,
+                                            save = TRUE, 
                                             se.method = 'jack_cov',
                                             predict.all = T,
                                             inbag.counts = rf$inbag.counts)
@@ -411,16 +419,17 @@ sim <- function(scenario){
           # Using f and true mean&variance of X
           predictions.f.true <- eval(formula_p, new_data.true)
           
-          var_effects[v] <- ((predictions.rf[5] - predictions.rf[3]) - (predictions.rf[6] - predictions.rf[4])) / (-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]]))
-          var_effects_true[v] <- ((predictions.f.true[5] - predictions.f.true[3]) - (predictions.f.true[6] - predictions.f.true[4])) / (-4*k^2*true_s[interaction_term[1]]*true_s[interaction_term[2]])
+          var_effects[n_coefs] <- ((predictions.rf[5] - predictions.rf[3]) - (predictions.rf[6] - predictions.rf[4])) / (-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]]))
+          var_effects_true[n_coefs] <- ((predictions.f.true[5] - predictions.f.true[3]) - (predictions.f.true[6] - predictions.f.true[4])) / (-4*k^2*true_s[interaction_term[1]]*true_s[interaction_term[2]])
           
           effect.se.direct <- rf.predict$se_effect
+          summands_list[[n_coefs]][rep,] <- rf.predict$summands
           effect.var <- pmax((sum(diag(rf.predict$cov))
                               - 2*rf.predict$cov[2,1]
                               - 2*rf.predict$cov[3,1] + 2*rf.predict$cov[3,2]
                               + 2*rf.predict$cov[4,1] - 2*rf.predict$cov[4,2] - 2*rf.predict$cov[4,3]) /  ((-4*k^2*sd(x[,interaction_term[1]])*sd(x[,interaction_term[2]])))^2, 0)
           
-          var_effects_se[v] <- effect.se.direct #sqrt(effect.var)
+          var_effects_se[n_coefs] <- effect.se.direct #sqrt(effect.var)
         }
       }
       
@@ -429,6 +438,7 @@ sim <- function(scenario){
     result_list[['effects.rf']][rep,] <- var_effects
     result_list[['effects.f.true']][rep,] <- var_effects_true
     result_list[['effects.se.rf']][rep,] <- var_effects_se
+    result_list[['summands_list']] <- summands_list
     
   }
   
@@ -448,7 +458,7 @@ sim <- function(scenario){
 
 
 # set.seed(123)
-# N <- c(50) ; num.trees <- c(2000) ; reps <- 100; cor <- c(0, 0.8)
+# N <- c(50) ; num.trees <- c(2000) ; reps <- 10; cor <- c(0, 0.8)
 # k <- c(1); node_size <- c(1)
 # formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-1.5*x.5")
 # longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-1.5x_5"
@@ -461,7 +471,7 @@ sim <- function(scenario){
 # scenarios["Longest_Latex_formula"] <- longest_latex_formula
 # scenarios <- split(scenarios, seq(nrow(scenarios)))
 # 
-# 
+# rowSums(result$`1`$summands_list[[1]])
 # 
 # system.time(result <- lapply(X = scenarios, FUN = sim))
 # 

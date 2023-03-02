@@ -136,6 +136,7 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
                                       type='se',
                                       se.method = 'jack_cov',
                                       k_ratio = k, 
+                                      save = FALSE,
                                       predict.all = T,
                                       inbag.counts = rf$inbag.counts)
     
@@ -192,6 +193,8 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
                                         newdata,
                                         type='se',
                                         se.method = 'jack_cov',
+                                        k_ratio = k, 
+                                        save = FALSE,
                                         predict.all = T,
                                         inbag.counts = rf$inbag.counts)
       predictions.rf <- rowMeans(rf.predict$predictions)
@@ -244,7 +247,8 @@ sim_once <- function(k, N, num.trees, cor, formula, node_size, pdp, ale, k_idx){
         rf.predict <- RangerForestPredict(rf$forest,
                                           new_data,
                                           type='se',
-                                          k_ratio = k,
+                                          k_ratio = k, 
+                                          save = FALSE,
                                           se.method = 'jack_cov',
                                           predict.all = T,
                                           inbag.counts = rf$inbag.counts)
@@ -321,7 +325,6 @@ sim_multi <- function(scenario){
                                    node_size = node_size, pdp = pdp,
                                    ale = ale, k_idx = k_idx))
   
-  print('ok')
   
 
   
@@ -360,32 +363,32 @@ sim_multi <- function(scenario){
 
 
 # # # ###### Simulation Setup
-# n <- c(40) ; num.trees <- 2000 ; repeats <- 10; cor <- c(0, 0.8)
-# k <- c(0.2, 1); node_size <- c(1); pdp <- F; ale <- F
-# formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-x.3*x.4",
-#               "2*x.1+4*x.2-3*x.3+2.2*x.4-1.5*x.5")
-# longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-x_3x_4"
-# 
-# 
-# #parallel::clusterExport(cl = clust, varlist = 'formulas')
-# scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
-#                                     cor, k, node_size, pdp, ale))
-# colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
-#                         "Correlation", "k", "Node_Size", "pdp", "ale")
-# scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
-# scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
-# scenarios["Longest_Latex_formula"] <- longest_latex_formula
-# scenarios <- split(scenarios, seq(nrow(scenarios)))
-# # #Run Simulation
-# system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+n <- c(40, 400, 4000) ; num.trees <- 2000 ; repeats <- 4; cor <- c(0, 0.8)
+k <- c(0.2, 1); node_size <- c(1); pdp <- F; ale <- F
+formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-x.3*x.4")
+longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-x_3x_4"
 
-# if (!pdp | !ale) {
-#   print_results(result)
-# }
-# effect_plots <- plot_effects(result)
-# 
-# se_plot <- plot_se(result)
-# effect_plots
-# se_plot
+
+#parallel::clusterExport(cl = clust, varlist = 'formulas')
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+                                    cor, k, node_size, pdp, ale))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+                        "Correlation", "k", "Node_Size", "pdp", "ale")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+# #Run Simulation
+system.time(result <- lapply(X = scenarios, FUN = sim_multi))
+
+if (!pdp | !ale) {
+  print_results(result)
+}
+effect_plots <- plot_effects(result)
+
+se_plot <- plot_se(result)
+effect_plots
+se_plot
+
 
 

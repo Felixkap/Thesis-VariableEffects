@@ -33,10 +33,10 @@ parallel::clusterEvalQ(clust,
 
 # Simulation  
 ```{r, warning=FALSE, fig.show='hide'}
-n <- c(40, 400, 4000) ; num.trees <- 2000 ; repeats <- 150; cor <- c(0, 0.8)
+n <- c(40, 400, 4000) ; num.trees <- 2000 ; repeats <- 4; cor <- c(0, 0.8)
 k <- c(0.2, 1); node_size <- c(1); pdp <- F; ale <- F
-formulas <- c("x.1-2*x.2^3+3*exp(x.3)*x.3-4*(abs(x.4)>0.5)-2^(x.5)")
-longest_latex_formula <- "x_1-2x_2^3+3e^{x_3}x_3-4(|x_4|>0.5)-2^{x_5}"
+formulas <- c("2*x.1+4*x.2-3*x.3+2.2*x.4-x.3*x.4")
+longest_latex_formula <- "2x_1+4x_2-3x_3+2.2x_4-x_3x_4"
 
 
 
