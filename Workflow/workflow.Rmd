@@ -1,0 +1,294 @@
+---
+title: "Simulation Workflow for an explorative Random Forest Model"
+output: pdf_document
+author: Felix Kapulla
+header-includes:
+  - \usepackage{amsmath,amssymb}
+  - \usepackage{algorithm}
+  - \usepackage[noend]{algpseudocode}
+---
+
+```{r, include=F}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+```
+
+### Import Packages and Helper File
+```{r}
+library(ranger)
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Workflow/Helper_Workflow.R')
+```
+
+
+## Definition of Main and Low-order Interaction Effects
+For any machine learning model $\hat{f}(\cdot)$, a simple main effect for predictor variable $x_j$ can be defined by fixing some point in the middle of the predictor space and shifting the coordinate of interest by some amount to form two new points Q and R. 
+
+
+\begin{itemize}
+    \item $Q_j = ( \hat{\mu}_1, \hat{\mu}_2,..., \hat{\mu_j} - k \cdot \hat{\sigma}_{x_j},...,\hat{\mu}_P )$\\
+    \item $R_j = ( \hat{\mu}_1, \hat{\mu}_2,..., \hat{\mu_j} + k \cdot \hat{\sigma}_{x_j},...,\hat{\mu}_P )$ 
+\end{itemize}
+   
+Here, the ML model $\hat{f}(\cdot)$ approximates the true functional relationship between $P$ predictors 
+and an outcome variable and $\hat{\mu}_j$, $\hat{\sigma}_j$ are estimates of the true mean and standard deviation of the $j$-th predictor variable respectively. Hence, $Q_j$ and $R_j$ are estimated from data. An effect of $x_j$ on the conditional mean $E(Y \mid X)$ can be estimated as:
+
+\begin{align}
+    &\hat{\beta_j} = \frac{\hat{f}(R_j)\ -\ \hat{f}(Q_j)}{2 \cdot k \cdot \hat{\sigma}_{x_j}}
+    \label{main}
+\end{align}
+
+
+Similarly to the main effect definition, a low-order interaction effect between two predictor variables can be defined by additionally shifting the coordinate of the interaction variable of interest by some amount as well such that four different data points are formed in total. Hence, a simple low-order interaction effect between two variables can be defined as :
+
+\begin{equation}
+    \hat{\gamma}_{i,j} = \frac{\left(\hat{f}(Q_1) - \hat{f}(Q_0)\right) - \left(\hat{f}(R_1) - \hat{f}(R_0)\right)}{ - 4 \cdot k^2 \cdot \hat{\sigma}_{x_i} \cdot \hat{\sigma}_{x_j}}
+\label{simple_interaction}    
+\end{equation} 
+
+The derivation of the denominator is shown in the appendix of my thesis.
+
+
+## Jackknife-After Bootstrap: Estimating Standard Errors of Main and Low-Order Interaction Effects
+Standard errors of our defined main and low-order interaction effects can be estimated by means of the jackknife-after-bootstrap estimation method. For detailed explanation, have a look at my thesis. There are two options to use the jackknife-after-bootstrap to arrive at a standard error estimated.<br>
+
+
+1) Estimate Variance-Covariance Matrix between random forest predictions of interest. For the standard error of a main effect compute $\sqrt{\widehat{Var}\left[\frac{\hat{f}(R)\ -\ \hat{f}(Q)}{2 \cdot k \cdot \hat{\sigma}_{x_j}} \right]} = \sqrt{\frac{1}{(2 \cdot k \cdot \hat{\sigma}_{x_j})^2} \left( \widehat{Var}[\hat{f}(R)]+ \widehat{Var}[\hat{f}(Q)]-2 \cdot \widehat{Cov}(\hat{f}(Q),\hat{f}(R))\right)}$. The estimation of low-order interaction effects based on the variance-covariance matrix is shown in my thesis. <br>
+
+
+Variance estimation of RF predictions for a data point Q (see paper of Wager et. al 2014):
+\begin{align}
+    &{\hat{V}}_J^B = \frac{n-1}{n} \sum_{i=1}^{n}{({\hat{\theta}}_{(-i)}^B(Q) - {\hat{\theta}}^B(Q))}^2 , \label{Var_j} \\
+    &\text{where }\hat{\theta}_{(-i)}^B(Q)=\frac{\sum_{{b: N_{bi}^*=0}}{t_b^*(Q)}}{|{N_{bi}^* = 0}|}\nonumber \\
+    &\hat{V}_{J-U}^B = \hat{V}_J^B - (e-1) \frac{n}{B^2}\sum_{b-1}^B \left( t_b^*(Q) - {\hat{\theta}}^B(Q) \right)^2
+\end{align}
+
+* $B$: Number of trees used to fit the random forest
+* $|{N_{bi}^* = 0}|$ Number of trees in which observation $i$ hasn't been part of
+* ${\hat{\theta}}_{(-i)}^B(Q)$: Random Forest prediction for $Q$ based on those trees where training observation $i$ was not part of
+* ${\hat{\theta}}^B(Q)$: Random Forest prediction for $Q$
+* $t_b^*(Q)$: Single tree prediction for $Q$ of $b$-th tree<br>
+
+Covariance estimation between RF predictions for data points Q and R (modified version of jackknife-after-bootstrap) 
+\begin{align}
+    &{\widehat{Cov}}_J^B = \frac{n-1}{n}\sum_{i=1}^{n}{\left({\hat{\theta}}_{\left(-i\right)}^B\left(Q\right)-{\hat{\theta}}^B\left(Q\right)\right)\cdot\left({\hat{\theta}}_{\left(-i\right)}^B\left(R\right)-{\hat{\theta}}^B\left(R\right)\right)} \label{Cov_RF_Predictions} \\
+    &{\widehat{Cov}}_{J-U}^B = \widehat{Cov}_{J}^B - (e-1)\frac{n}{B^2} \sum_{b-1}^B \left( t_b^*(Q) - {\hat{\theta}}^B(Q) \right) \left( t_b^*(R) - {\hat{\theta}}^B(R) \right)
+\label{cov_rf_predictions}    
+\end{align}
+
+
+2) Use the jackknife-after-bootstrap procedure to estimate variable effects directly (modified version of jackknife-after-bootstrap) 
+
+\begin{align}
+    &{\widehat{V}\left(\hat{\beta_j}\right)}_J^B = \frac{n-1}{n}\sum_{i=1}^{n} \left( \hat{\beta_j}_{(-i)} - \hat{\beta_j}\right)^2 \label{Main_Effect_Variance} \\ 
+    &{\widehat{V}\left(\hat{\beta_j}\right)}_J^B = \frac{n-1}{n}\sum_{i=1}^{n}{\left(\frac{{\hat{\theta}}_{\left(-i\right)}^B\left(R_j\right) - {\hat{\theta}}_{\left(-i\right)}^B\left(Q_j\right)}{2k\hat{\sigma_x}} - \frac{{\hat{\theta}}^B\left(R_j\right) - {\hat{\theta}}^B\left(Q_j\right)}{2k\hat{\sigma_x}} \right)^2} \label{Main_Effect_Variance_math} \\
+    &{\widehat{V}\left(\hat{\beta_j}\right)}_{J-U}^B = {\widehat{V}\left(\hat{\beta_j}\right)}_J^B - (e-1)\frac{n}{B^2} \sum_{b-1}^B \left( \frac{t_b^*(R_j) - {\hat{\theta}}^B(Q_j)}{2k\hat{\sigma_x}} - \frac{t^*(R_j) - {\hat{\theta}}^B(Q_j)}{2k\hat{\sigma_x}} \right)^2
+\label{Main_Effect_Variance_Bias_Corrected}    
+\end{align}
+
+Both estimation methods yield the same results! This is also shown a bit in later in this workflow.
+
+
+## Read in Data 
+
+```{r}
+seed <- 12391
+set.seed(seed)
+data <- read.csv('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Workflow/Apply_Workflow_To_Data/fietsdata.csv', )
+data <- char_to_fac(data)
+x <- data %>% select(-fietskans)
+head(data)
+mean(x$km)
+```
+
+## Set Hyperparameter of Random Forest
+The random forest algorithm has several hyperparameters of which the most important ones are the number of trees used to fit the random forest (*num.trees*), the number of randomly sampled variables that are considered when looking for the best split (*mtry*), the minimum number of observations required to split an internal node (*node.size*) as well as the maximal tree depth (*max.depth*). An alternative to just set hyperparameters manually is to tune them. In the world of machine learning the full training set is usually split into a train and test set and on the reduced training set cross-validation is commonly performed to tune hyperparameters. 
+
+```{r}
+## @param num.trees: Number of trees used to fit the Random Forest
+## @param mtry: Number of variables to possibly split at in each node 
+#               ---> Smaller value -> more randomness <=> Uncorrelated trees ->
+## @param node.size: Minimal node size to split at. Default 1 for classification, 5 for regression
+## @param max.depth: Maximal tree depth
+
+num.trees<- 4000
+mtry <- 2
+node_size <- 5
+k <- 0.5
+max.depth <- NULL # Corresponds to unlimited depth
+```
+
+
+## Fit Random Forest
+After specifying the hyperparameters the random forest is fit on the training data. F0r this, the ranger function is used from the ranger package. Ranger is a fast implementation of random forests (Breiman 2001). It is faster than the most common *randomForest* function from the package *randomForest*. Classification, regression, and survival forests are supported. Classification and regression forests are implemented as in the original Random Forest (Breiman 2001). Furthermore, implementations of extremely randomized trees (Geurts et al. 2006) and quantile regression forests (Meinshausen 2006) are included.
+```{r}
+# Random Forest
+rf <- ranger( formula = fietskans ~ .,
+              data = data,
+              num.trees = num.trees,
+              keep.inbag = T, 
+              oob.error = T, 
+              mtry = mtry,
+              max.depth = max.depth,
+              importance = 'permutation',
+              min.node.size = node_size)
+
+# Linear Model
+linreg <- lm( formula = fietskans ~ .^2,
+              data = data)
+summary(linreg)
+
+
+```
+
+
+## Performance on Training and Test Data
+Based on the random forest predictions the root mean squared error (RMSE) or $R^2$ can be computed as metric for the model fit. Furthermore, it is useful to plot the rmse against the number of trees. This running rmse estimate shows at how many trees the training or test error starts to stabilize. More important than the model fit on the train data is the performance on test data in order to evaluate how well the machine learning model is able to generalize to unseen data. 
+```{r}
+# Random Forest
+all_tree_predictions <- predict(rf, x, predict.all = T)$predictions
+predictions.rf <- rowMeans(all_tree_predictions)
+
+# Linear Model
+predictions.lm <- predict(linreg,
+                          newdata = data,
+                          se.fit = T)$fit
+n <- nrow(data)
+cat("RMSE on train data of Linear Model:", sqrt(mean((data$fietskans - predictions.lm)^2)), 
+    ". RMSE on train data of Random Forest:", sqrt(mean((data$fietskans - predictions.rf)^2)),
+    ".\nR^2 of Linear Model:", 1 - mean((data$fietskans - predictions.lm)^2) / ((n-1) / (n) * var(data$fietskans)), 
+    ". R^2 of Random Forest:", 1 - mean((data$fietskans - predictions.rf)^2) / ((n-1) / (n) * var(data$fietskans)),
+    ".\nOOB estimate of RF for generalization error:", sqrt(rf$prediction.error), ".")
+
+# Add optional Arguments: thinning, first_tree
+par(mfrow=c(1,2))
+plot_error_rate(rf, data, outcome='fietskans', data_type='train')
+plot_error_rate(rf, data, outcome='fietskans', data_type='oob')
+
+```
+\newpage
+
+## Summary of Model fit 
+Obtain summary of effect estimates with corresponding standard errors (estimated by jackknife-after-bootstrap). This is done via the user-defined function *summary.rf*. The user has several options to specify the summary output. Specification Options are the following:<br>
+
+* *point_of_interest*: Serves as reference point to compute variable main and low-order interaction effects. Default is the mean of all numerical and mode of all binary categorical variables. 
+* *interaction*: Specifiy if interaction effects should be estimated. This argument can be specified as 'None', 'specific' or 'all'.
+* *interaction_terms*: If Argument *interaction* was specified as 'specific', then the user should specify which interaction effects should be estimated by means of a character vector that is of the form 'variable.name1:variable.name2' 
+* *moving_var_effects*: Boolean which indicates whether a running variance estimate of main and low-order interaction effects should be estimated (VAR-Estimate vs. Number of Trees)
+* *moving_se_effects*: Boolean which indicates whether a running standard error estimate of main and low-order interaction effects should be estimated (SE-Estimate vs. Number of Trees)
+* *first_tree*: Define which should be the starting tree for plots (in the beginning there might be lots of variation)
+* *thinning*: Parameter that defines that only every x trees moving se's / var's should be computed
+
+Output of function *summary.rf* is a list with the following components:<br>
+
+* *$\$$summary*: Table of estimated main and low-order interaction effects with corresponding standard errors (estimated by direct version of jackknife-after-bootstrap)
+* *$\$$cov_list*: listed are data points that were used to compute each effect. Next to it, the estimated variance covariance matrix of the corresponding random forest predictions is provided.
+* *$\$$moving_var_effects* or *$\$$moving_se_effects*: Plots that illustrate running Var- / Se- estimate of variable effects to check whether estimates are stable.
+
+\newpage
+```{r}
+result <- summary.rf(x = x, 
+                     fitted.rf = rf, 
+                     point_of_interest = 'mean_mode', 
+                     k = k, 
+                     interaction = 'all', 
+                     interaction_terms = NULL, 
+                     moving_var_effects = T, 
+                     moving_se_effects = F, 
+                     first_tree=100, 
+                     thinning=25)
+# Summary output of variable main and low-order interaction effects
+result$summary
+```
+\newpage
+```{r}
+result <- summary.rf(x = x, 
+                     fitted.rf = rf, 
+                     point_of_interest = 'mean_mode', 
+                     k = 1, 
+                     interaction = 'all', 
+                     interaction_terms = NULL, 
+                     moving_var_effects = T, 
+                     moving_se_effects = F, 
+                     first_tree=100, 
+                     thinning=50)
+# Summary output of variable main and low-order interaction effects
+result$summary
+
+```
+
+
+```{r}
+# List containing the data points with corresponding variance-covariance matrix 
+# that were used to compute variable main and low order interaction effects 
+result$cov_list
+```
+
+```{r}
+# Plot moving variance or standard error estimates of effects
+do.call('ggarrange', result$moving_var_effect)
+```
+
+\newpage
+## Partial Dependence Plots 
+
+In order to visualize possibly complex, non-linear relationships between predictors and the predicted outcome variable, partial dependence plots (PDP) can be used. A PDP is a type of global model-agnostic method which shows the marginal effect of usually one or two features on the predicted outcome of any machine learning model. Given a regression task, the partial dependence function can be estimated by looping over all training observations (average over marginal distribution of all other variables that are not plotted):
+
+
+\begin{algorithm}
+\caption{Estimation of Partial Dependence Function}
+\label{alg:PDP}
+\begin{algorithmic}[1]
+\State {\bfseries Input:} Feature matrix $\boldsymbol{X}$, Trained prediction model $\hat{f}(\boldsymbol{X})$, Range of grid values for $X_S$: $x_s^G$, $N$ Training Observations
+\For{$x_S \in x_S^G$}
+\For{$i$ in $1:N$}
+    \State $x_S^{(i)} \leftarrow x_S$
+    \State $\hat{y}_i^{PDP} = \hat{f}\left( x_S^{(i)}, x_C^{(i)}\right)$
+    \EndFor
+    \State $\hat{f}\left( x_S\right) = \frac{1}{n} \sum_{i=1}^n \hat{y}_i^{PDP}$
+    \label{PDP-func}
+    \EndFor  
+\end{algorithmic}
+\end{algorithm}
+
+```{r}
+# PDP of each single variables
+pdps <- plot_pdp(rf, x, names(x))
+ggarrange(pdps[[1]], ggarrange(pdps[[2]], pdps[[3]], ncol=2), nrow=2)
+```
+
+```{r}
+# PDP of two specific variable
+plot_2pdp(rf, c('geslacht', 'km'))
+```
+
+
+## Permutation Variable Importance
+
+The basic idea permutation variable importance is to consider a feature $x_j$ important if it has a positive effect on the prediction performance. For that, values of $x_j$ are permuted to break the association between that feature and the outcome. Hence, if the model relied for its predictions on $x_j$ , then permuting its values would result in an increase of the model’s prediction error.
+
+
+\begin{algorithm} 
+\caption{Permutation Variable Importance Algorithm}
+\label{alg:PVIA}
+\begin{algorithmic}[1]
+\State {\bfseries Input:} Feature matrix $\boldsymbol{X}$, trained model $\hat{f}(\boldsymbol{X})$, outcome vector $y$, loss function $\boldsymbol{L}\left(y, \hat{f}(\boldsymbol{X}) \right)$
+\State Estimate original loss for $\hat{f}(\boldsymbol{X})$: $\boldsymbol{L}_0\left(y, \hat{f}(\boldsymbol{X}) \right)$
+\For{Feature $j \in {1,...,P}$}
+    \State Generate random permutation vector: $\overrightarrow{r}$
+    \State Generate feature matrix $\boldsymbol{X}_{\overrightarrow{r}}$ by permuting $j$-th feature according to  $\overrightarrow{r}$
+    \State Estimate new prediction error for $\hat{f}\left( \boldsymbol{X}_{\overrightarrow{r}}\right)$: $ \boldsymbol{L}\left(y, \hat{f}\left( \boldsymbol{X}_{\overrightarrow{r}}\right) \right)$ 
+    \State Compute Permutation Variable Importance as $PVI_j = \boldsymbol{L}\left(y, \hat{f}\left( \boldsymbol{X}_{\overrightarrow{r}}\right) -\right)\boldsymbol{L}_0\left(y, \hat{f}(\boldsymbol{X}) \right)$ 
+    \label{alg:line7}
+    \EndFor
+\end{algorithmic}
+\end{algorithm}
+
+
+
+```{r}
+# Visualizing Variable Importance
+plot_varimp(rf)
+```
+
+
+
+

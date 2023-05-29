@@ -1,0 +1,64 @@
+---
+title: "Random Forest --- Reliability of Standard Error Estiamtes of Main and Low-Order Effects"
+output: pdf_document
+author: Felix Kapulla
+---
+
+```{r}
+knitr::opts_chunk$set(fig.width=17, fig.height=10) 
+```
+
+```{r,results='hide',message=FALSE, warning=FALSE}
+library(Matrix)
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(ranger)
+library(MixMatrix)
+library(mvtnorm)
+library(stringr)
+library(parallel)
+cores <- detectCores()
+clust <- makeCluster(cores)
+source('C:/Users/kpl/Thesis Project/Thesis-VariableEffects/Reliability_SE_Estimates.R')
+
+
+parallel::clusterEvalQ(clust,
+                        expr = {source('C:/Users/kpl/Thesis Project/Thesis-VariableEffects/Simulation - Variable Effects & SE/Baseline_MultipleVariableInteraction.R')})
+```
+
+
+# Simulation  
+
+
+```{r, warning=FALSE, fig.show='hide'}
+### Scenarios
+set.seed(123)
+N <- c(200, 2000) ; num.trees <- c(200, 2000, 20000) ; reps <- 200; cor <- c(0)
+k <- c(1); node_size <- c(5)
+formulas <- c("6*x.1+8*x.2-5*x.3+4*x.4-2*x.5")
+longest_latex_formula <- "6x_1+8x_2-5x_3+4x_4-2x_5"
+scenarios <- data.frame(expand.grid(N, num.trees, formulas, reps,
+                                    cor, k, node_size))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Reps",
+                        "Correlation", "k", "Node_Size")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) ### Formula became Factor
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+system.time(result <- parLapply(cl = clust,
+                               X = scenarios,
+                               fun = sim))
+
+```
+
+
+```{r}
+
+plot_effects(result)
+
+plot_se_box(result)
+plot_se_dense(result)
+```
+

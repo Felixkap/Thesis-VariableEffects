@@ -1,0 +1,149 @@
+---
+title: "Estimating Variance of Simple Defined Variable Main and Low-Order Interaction Effects"
+output: pdf_document
+author: Felix Kapulla
+---
+
+```{r}
+knitr::opts_chunk$set(fig.width=15, fig.height=8) 
+```
+
+```{r,results='hide',message=FALSE, warning=FALSE}
+# Import Packages
+library(Matrix)
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(ranger)
+library(MixMatrix)
+library(mvtnorm)
+library(stringr)
+library(parallel)
+
+# Initialize Parallelization
+cores <- detectCores()
+clust <- makeCluster(cores)
+
+source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Simulation - Variable Effects & SE/Baseline_MultipleVariableInteraction.R')
+
+parallel::clusterEvalQ(clust,
+                        expr = {source('C:/Users/feix_/iCloudDrive/Studium Master/CQM - Thesis Internship/Thesis-VariableEffects/Simulation - Variable Effects & SE/Baseline_MultipleVariableInteraction.R')})
+
+
+
+```
+
+
+# Simulation  
+
+```{r, warning=FALSE, fig.show='hide'}
+### Define Setting
+n <- c(200, 2000) ; num.trees <- 4000 ; repeats <- 200; cor <- c(0, 0.9); sigma_e <- c(1)
+k <- c(0.5, 1, 2); node_size <- c(5)
+formulas <- c("4*x.1+0.2*x.2-5*x.3+2*x.4-2*x.3*x.4")
+longest_latex_formula <- "4x_1+0.2x_2-5x_3+2x_4-2x_3x_4"
+
+
+
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+                                    cor, k, node_size, sigma_e))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+                        "Correlation", "k", "Node_Size", "sigma_e")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) 
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+### Run Simulation
+system.time(result <- parLapply(cl = clust, 
+                                X = scenarios, 
+                                fun = sim_multi))
+
+```
+
+
+```{r}
+print_results(result, lm_results = T) 
+
+
+plot_effects(result, ax=F, compare_lm=T)
+plot_se(result, ax='all')
+```
+
+
+\newpage
+```{r, warning=FALSE, fig.show='hide'}
+### Define Setting
+n <- c(200, 2000) ; num.trees <- 4000 ; repeats <- 200; cor <- c(0, 0.9); sigma_e <- c(1)
+k <- c(0.5, 1, 2); node_size <- c(5)
+formulas <- c("3^(x.1)+3*atan2(0.75,x.2)+3*exp(x.3)-4*(abs(x.4)>0.75)*x.4-2*x.3*x.4")
+longest_latex_formula <- "3^{x_1}+3\\tan^{-1}\\left(\\frac{0.75}{x_2}\\right)+
+3e^{x_3}-4(|x_4|>0.75)x_4-2x_3x_4"
+
+
+
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+                                    cor, k, node_size, sigma_e))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+                        "Correlation", "k", "Node_Size", "sigma_e")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"]) 
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+### Run Simulation
+system.time(result <- parLapply(cl = clust, 
+                                X = scenarios, 
+                                fun = sim_multi))
+
+```
+
+
+```{r}
+print_results(result, lm_results = T) 
+
+
+plot_effects(result, ax=F, compare_lm=T)
+plot_se(result, ax='all')
+```
+
+
+\newpage
+```{r, warning=FALSE, fig.show='hide'}
+### Define Setting
+n <- c(200) ; num.trees <- 2000 ; repeats <- 200; cor <- c(0, 0.9); sigma_e <- c(1)
+k <- c(1); node_size <- c(5)
+formulas <- c("4*x.1",
+              "4*x.1-3*x.2",
+              "4*x.1-3*x.2-5*x.3",
+              "4*x.1-3*x.2-5*x.3+2*x.4",
+              "4*x.1-3*x.2-5*x.3+2*x.4-2*x.5",
+              "4*x.1-3*x.2-5*x.3+2*x.4-2*x.5+3*x.6")
+longest_latex_formula <- "4x_1-3x_2-5x_3+2x_4-2x_5+3x_6"
+
+
+
+scenarios <- data.frame(expand.grid(n, num.trees, formulas, repeats,
+                                    cor, k, node_size, sigma_e))
+colnames(scenarios) = c("N", "N_Trees", "Formula", "Repeats",
+                        "Correlation", "k", "Node_Size", "sigma_e")
+scenarios$k_idx <- (scenarios$k == unique(scenarios$k)[1])
+scenarios[,"Formula"] <- as.character(scenarios[,"Formula"])
+scenarios["Longest_Latex_formula"] <- longest_latex_formula
+scenarios <- split(scenarios, seq(nrow(scenarios)))
+
+### Run Simulation
+system.time(result <- parLapply(cl = clust, 
+                                X = scenarios, 
+                                fun = sim_multi))
+
+```
+
+
+```{r}
+print_results(result, lm_results = T) 
+
+
+plot_effects(result, ax=F, compare_lm=T)
+plot_se(result, ax='all')
+```

@@ -7,8 +7,8 @@ rangerCpp <- function(treetype, input_x, input_y, variable_names, mtry, num_tree
 
 
 
-RangerForestPredict <- function(object, data, predict.all = FALSE, k_ratio, 
-                                  num.trees = object$num.trees, 
+RangerForestPredict <- function(object, data, predict.all = FALSE,  
+                                  num.trees = object$num.trees,
                                   type = "response", se.method = "jack",
                                   seed = NULL, num.threads = NULL,
                                   verbose = TRUE, inbag.counts = NULL, ...) {
@@ -286,6 +286,7 @@ RangerForestPredict <- function(object, data, predict.all = FALSE, k_ratio,
   
   ## Compute Jackknife
   if (type == "se") {
+    
     ## Aggregated predictions
     if (length(dim(result$predictions)) > 2) {
       yhat <- apply(result$predictions, c(1, 2), mean)
@@ -293,14 +294,19 @@ RangerForestPredict <- function(object, data, predict.all = FALSE, k_ratio,
       yhat <- rowMeans(result$predictions, na.rm = T)
     }
     
-    ## Get inbag counts, keep only observations that are OOB at least once
+    
+    
+    # inbag.counts: How often does training observation occur in each bootstrap sample b? Dimension: N_train X N_trees
     inbag.counts <- simplify2array(inbag.counts) 
     if (is.vector(inbag.counts)) {
       inbag.counts <- t(as.matrix(inbag.counts))
     }
     inbag.counts <- inbag.counts[rowSums(inbag.counts == 0) > 0, , drop = FALSE] 
+    # n: Number of training observations
     n <- nrow(inbag.counts)
-    oob <- inbag.counts == 0 # Is observation in bootstrap sample b yes or no?
+    
+    # oob: Is observation in bootstrap sample b yes or no?. Dimension: N_train X N_trees
+    oob <- inbag.counts == 0 
 
     if (num.trees != object$num.trees) {
       oob <- oob[, 1:num.trees]
@@ -310,10 +316,18 @@ RangerForestPredict <- function(object, data, predict.all = FALSE, k_ratio,
       stop("Error: No OOB observations found, consider increasing num.trees or reducing sample.fraction.")
     }
     
-    if (se.method == "jack" || se.method == "jack_cov") {
-      ## Compute Jackknife
-      oob.count <- rowSums(oob) # In how many bootstrap samples appears observation?
+    ## Compute Jackknife Estimate (SE of RF prediction or SE of RF variable effect)
+    if (se.method == "jack") {
+      
+      # oob.count: In how many bootstrap samples does each observation appear?
+      oob.count <- rowSums(oob) 
 
+      # jack.n <=> Jackknife RF predictions = /hat{{/theta}}^{B}_{-i}(x):
+      # To obtain Jackknife RF prediction for an observation...
+        # (i) ..., check for each training observation, in which bootstrap samples that observation was not part of (information in oob)
+        # (ii) Based on those bootstrap samples, get corresponding tree predictions for observation of interest
+        # (iii) Average all tree predictions to obtain Jacknife RF prediction
+      # jack.n does this in a vectorized manner for all observations of interest
       jack.n <- sweep(tcrossprod(result$predictions, oob), 
                       2, oob.count, "/", check.margin = FALSE)
      
@@ -325,70 +339,92 @@ RangerForestPredict <- function(object, data, predict.all = FALSE, k_ratio,
         jack.n <- jack.n[, oob.count > 0]
       } 
       
-
+      # jack <=> Jackknife estimate of SE of RF prediction
       jack <- (n - 1) / n * rowSums((jack.n - yhat)^2)
+      # bias correction
       bias <- (exp(1) - 1) * n / result$num.trees^2 * rowSums((result$predictions - yhat)^2)
-      jab <- pmax(jack - bias, 0)
-      result$se <- sqrt(jab)
-
+      result$var <- jack - bias
+      result$se <- sqrt(pmax(result$var, 0))
       
-
-      if (se.method == "jack_cov") {
-
-        ## Compute Jackknife
-        
-        jack.n <- sweep(tcrossprod(result$predictions, oob), # For Covariance --- Observation 1 and 2
-                         2, oob.count, "/", check.margin = FALSE) 
+    } else  if (se.method == "jack_cov") {
       
-        
-        if (is.vector(jack.n)) {
-          jack.n <- t(as.matrix(jack.n))
+      ## Compute Jackknife
+      oob.count <- rowSums(oob) # In how many bootstrap samples appears observation?
+      
+      jack.n <- sweep(tcrossprod(result$predictions, oob), # For Covariance --- Observation 1 and 2
+                      2, oob.count, "/", check.margin = FALSE) 
+      
+      
+      if (is.vector(jack.n)) {
+        jack.n <- t(as.matrix(jack.n))
+      }
+      
+      
+      ######################################################################
+      ############### Estimate Variance - Covariance Matrix ################
+      ######################################################################
+      
+      # Estimate Variances
+      jack <- (n - 1) / n * rowSums((jack.n - yhat)^2)
+      # Bias correction
+      bias <- (exp(1) - 1) * n / result$num.trees^2 * rowSums((result$predictions - yhat)^2)
+      result$var <- jack - bias
+      result$se <- sqrt(pmax(result$var, 0))
+      
+      # Estimate Variance-Covariance Matrix
+      n_obs <- nrow(jack.n)
+      obs_vec <- sapply(1:n_obs, function(i){jack.n[i,] - yhat[i]})
+
+      result$cov <- matrix(NA, n_obs, n_obs)
+      for (i in 1:n_obs) {
+        for (j in 1:n_obs) {
+          if (i==j) {
+            result$cov[i,j] = result$var[i]
+          } else {
+            jack_cov <- (n - 1) / n * sum(obs_vec[,i] * obs_vec[,j])
+            bias <- (exp(1) - 1) * n / result$num.trees^2 * sum((result$predictions[i,] - yhat[i])*(result$predictions[j,] - yhat[j]))
+            jack_cov <- jack_cov - bias
+            result$cov[i,j] = jack_cov
+          }
         }
-        
-        
-        ######################################################################
-        ############### Estimate Variance - Covariance Matrix ################
-        ######################################################################
-        # n_obs <- nrow(jack.n)
-        # obs_vec <- sapply(1:n_obs, function(i){jack.n[i,] - yhat[i]})
-        # 
-        # 
-        # 
-        # result$cov <- matrix(NA, n_obs, n_obs)
-        # for (i in 1:n_obs) {
-        #   for (j in 1:n_obs) {
-        #     if (i==j) {
-        #       result$cov[i,j] = jab[i]
-        #     } else {
-        #       jack_cov <- (n - 1) / n * sum(obs_vec[,i] * obs_vec[,j])
-        #       bias <- (exp(1) - 1) * n / result$num.trees^2 * sum((result$predictions[i,] - yhat[i])*(result$predictions[j,] - yhat[j]))
-        #       jack_cov <- jack_cov - bias
-        #       result$cov[i,j] = jack_cov
-        #     }
-        #   }
-        # }
-        
-        
-        
-        ######################################################################
-        ######## Direct Estimate for Standard Error of Variable Effect #######
-        ######################################################################
-        
-        if (nrow(jack.n) == 2) {
-          jack_var <- (n - 1) / n * sum(((jack.n[2,] - jack.n[1,]) - (yhat[2] - yhat[1]))^2) 
-          bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum(((result$predictions[2,] - result$predictions[1,]) - (yhat[2] - yhat[1]))^2) 
-          jab_var <- (pmax(jack_var - bias_var, 0))
-          result$se_effect <- ( 1 / k_ratio ) * sqrt(jab_var) / 2
-        } else {
-          jack_var <- (n - 1) / n * sum((((jack.n[5,] - jack.n[3,]) - (jack.n[6,] - jack.n[4,])) - ((yhat[5] - yhat[3]) - (yhat[6] - yhat[4])))^2) 
-          bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum((((result$predictions[5,] - result$predictions[3,]) - (result$predictions[6,] - result$predictions[4,])) - ((yhat[5] - yhat[3]) - (yhat[6] - yhat[4])))^2) 
-          jab_var <- pmax(jack_var - bias_var, 0) 
-          result$se_effect <- ( 1 / k_ratio^2 ) * sqrt(jab_var) / 4
-        }
-        
-    
-          
+      }
+      
+    } else if (se.method == "se_direct") {
+      
+      oob.count <- rowSums(oob) 
+      
+      jack.n <- sweep(tcrossprod(result$predictions, oob), 
+                      2, oob.count, "/", check.margin = FALSE)
+      
+      if (is.vector(jack.n)) {
+        jack.n <- t(as.matrix(jack.n))
+      }
+      if (any(oob.count == 0)) {
+        n <- sum(oob.count > 0)
+        jack.n <- jack.n[, oob.count > 0]
       } 
+      
+      ######################################################################
+      ######## Direct Estimate for Standard Error of Variable Effect #######
+      ######################################################################
+      
+      # Instead of evaluating the difference between Jackknife RF predictions and outcome (jack.n-yhat)
+      # Evaluate difference between difference between Jackknife RF Variable effect and Outcome Variable effect ((jack.n[2,] - jack.n[1,]) - (yhat[2] - yhat[1]))
+      
+      if (nrow(jack.n) == 2) {
+        change <- sum(x[2,]-x[1,])
+        jack_var <- (n - 1) / n * sum(( 1 / change *  (jack.n[2,] - jack.n[1,]) -  1 / change * (yhat[2] - yhat[1]))^2) 
+        bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum(( 1 / change *(result$predictions[2,] - result$predictions[1,]) -  1 / change *(yhat[2] - yhat[1]))^2) 
+        result$var_effect <- jack_var - bias_var
+        result$se_effect <- sqrt(pmax(result$var_effect, 0) )
+      } else {
+        change <- prod(abs((x[3,] - x[2,]))[which(abs(x[3,] - x[2,]) != 0)])
+        jack_var <- (n - 1) / n * sum(( 1 / (-change) * ((jack.n[3,] - jack.n[1,]) - (jack.n[4,] - jack.n[2,])) - 1 / (-change) * ((yhat[3] - yhat[1]) - (yhat[4] - yhat[2])))^2) 
+        bias_var <- (exp(1) - 1) * n / result$num.trees^2 * sum((1 / (-change) * ((result$predictions[3,] - result$predictions[1,]) - (result$predictions[4,] - result$predictions[2,])) - 1 / (-change) * ((yhat[3] - yhat[1]) - (yhat[4] - yhat[2])))^2) 
+        result$var_effect <- jack_var - bias_var
+        result$se_effect <- sqrt(pmax(result$var_effect, 0) )
+      }
+      
     } else if (se.method == "infjack") {
       if (forest$treetype == "Regression") {
         infjack <- rInfJack(pred = result$predictions, inbag = inbag.counts, used.trees = 1:num.trees)
@@ -621,7 +657,6 @@ calibrateEB = function(vars, sigma2) {
   }
   return(calib.all)
 }
-
 
 
 
